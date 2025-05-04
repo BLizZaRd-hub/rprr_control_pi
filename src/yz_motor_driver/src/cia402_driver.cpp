@@ -615,6 +615,40 @@ int32_t CiA402Driver::getTargetPosition() {
     return target_position;
 }
 
+bool CiA402Driver::setProfileVelocity(uint32_t velocity) {
+    // 设置轮廓速度
+    std::cerr << "Setting profile velocity to " << velocity << std::endl;
+    return canopen_->writeSDO<uint32_t>(0x6081, 0, velocity);
+}
 
+bool CiA402Driver::setProfileAcceleration(uint32_t acceleration) {
+    // 设置轮廓加速度
+    std::cerr << "Setting profile acceleration to " << acceleration << std::endl;
+    return canopen_->writeSDO<uint32_t>(0x6083, 0, acceleration);
+}
+
+bool CiA402Driver::saveParameters() {
+    // 保存参数到非易失性存储器
+    std::cerr << "Saving parameters to non-volatile memory" << std::endl;
+    
+    // 使用CANopen对象字典中的存储命令
+    // 通常使用对象1010h进行存储操作
+    // 写入"save"的ASCII码（0x65766173）作为签名
+    uint32_t save_signature = 0x65766173;
+    
+    // 尝试保存所有参数（子索引1）
+    bool result = canopen_->writeSDO<uint32_t>(0x1010, 1, save_signature);
+    
+    if (!result) {
+        std::cerr << "Failed to save parameters" << std::endl;
+        return false;
+    }
+    
+    // 等待保存完成
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    std::cerr << "Parameters saved successfully" << std::endl;
+    return true;
+}
 
 } // namespace yz_motor_driver

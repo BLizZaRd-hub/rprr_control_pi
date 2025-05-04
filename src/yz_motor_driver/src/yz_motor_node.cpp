@@ -150,7 +150,9 @@ void YZMotorNode::enableCallback(
     
     // 尝试使用PDO使能
     RCLCPP_INFO(this->get_logger(), "Enabling motor using PDO");
-    bool result = cia402_driver_->enableOperationPDO();
+    if (!cia402_driver_->enableOperationPDO()) {
+        RCLCPP_WARN(this->get_logger(), "Failed to enable motor using PDO");
+    }
     
     // 等待使能完成
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -163,7 +165,12 @@ void YZMotorNode::enableCallback(
         
         // 尝试使用SDO使能
         RCLCPP_INFO(this->get_logger(), "Trying to enable via SDO");
-        result = cia402_driver_->enableOperation();
+        if (!cia402_driver_->enableOperation()) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to enable motor via SDO");
+            response->success = false;
+            response->message = "Failed to enable motor operation";
+            return;
+        }
         
         // 等待使能完成
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -462,7 +469,7 @@ double YZMotorNode::velocityToRpm(int32_t velocity) {
 }
 
 void YZMotorNode::setVelocityCallback(
-    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> /* request */,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     
     if (!cia402_driver_) {
@@ -482,7 +489,7 @@ void YZMotorNode::setVelocityCallback(
 }
 
 void YZMotorNode::setAccelerationCallback(
-    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> /* request */,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     
     if (!cia402_driver_) {
