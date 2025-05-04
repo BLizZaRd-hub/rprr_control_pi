@@ -255,7 +255,7 @@ uint32_t CiA402Driver::getProfileAcceleration() {
 }
 
 bool CiA402Driver::transitionToState(CiA402State target_state, std::chrono::milliseconds timeout) {
-    // 删除这一行
+    // 删除未使用的变量
     // auto start_time = std::chrono::steady_clock::now();
     
     // 增加超时时间
@@ -615,6 +615,17 @@ int32_t CiA402Driver::getTargetPosition() {
     return target_position;
 }
 
+uint32_t CiA402Driver::getProfileVelocity() {
+    uint32_t velocity = 0;
+    canopen_->readSDO<uint32_t>(0x6081, 0, velocity);
+    return velocity;
+}
+
+uint32_t CiA402Driver::getProfileAcceleration() {
+    uint32_t acceleration = 0;
+    canopen_->readSDO<uint32_t>(0x6083, 0, acceleration);
+    return acceleration;
+}
 
 
 } // namespace yz_motor_driver
