@@ -2,36 +2,21 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>yz_motor_driver</name>
-  <version>0.0.1</version> <!-- 你可以根据需要修改版本号 -->
-  <description>ROS 2 driver for YZ 57AIM30 motor using SocketCAN and CANopen principles</description>
+  <version>0.1.0</version>
+  <description>YZ-AIM30 CANopen motor driver for ROS2</description>
+  <maintainer email="user@example.com">user</maintainer>
+  <license>Apache License 2.0</license>
 
-  <!-- 维护者信息 -->
-  <maintainer email="906612175@qq.com">BLizZaRd</maintainer>
-  <!-- 许可证信息 (请选择合适的许可证) -->
-  <license>Apache-2.0</license> <!-- 或者 MIT, BSD etc. -->
-
-  <!-- 构建工具依赖 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
-
-  <!-- 构建时和运行时都需要的依赖 -->
+  
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
+  <!-- 移除 <depend>example_interfaces</depend> -->
 
-  <!-- 仅构建时需要的依赖 (例如消息/服务生成) -->
-  <!-- <build_depend>rosidl_default_generators</build_depend> -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
-  <!-- 仅运行时需要的依赖 (例如 Python 脚本) -->
-  <!-- <exec_depend>rosidl_default_runtime</exec_depend> -->
-
-  <!-- 组件注册需要的依赖 -->
-  <depend>rclcpp_components</depend>
-
-  <!-- 测试依赖 (如果添加了测试) -->
-  <!-- <test_depend>ament_lint_auto</test_depend> -->
-  <!-- <test_depend>ament_lint_common</test_depend> -->
-
-  <!-- 导出信息 -->
   <export>
     <build_type>ament_cmake</build_type>
   </export>
