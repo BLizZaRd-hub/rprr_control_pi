@@ -48,9 +48,6 @@ private:
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr enable_srv_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr disable_srv_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr home_srv_;
-    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr position_mode_srv_;
-    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr velocity_mode_srv_;
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_params_srv_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr set_velocity_srv_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr set_acceleration_srv_;
     
