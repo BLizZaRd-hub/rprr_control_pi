@@ -43,24 +43,34 @@ public:
     bool enableOperation();
     bool enableOperationPDO();
     bool disableOperation();
+    bool quickStop();
     bool resetFault();
+    bool transitionToState(CiA402State target_state, std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
     
     // 操作模式设置
     bool setOperationMode(OperationMode mode);
     OperationMode getOperationMode();
     
     // 位置控制
-    bool setTargetPosition(int32_t position);
+    bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = true);
     bool setTargetPositionPDO(int32_t position, bool absolute = true);
     int32_t getPosition();
+    int32_t getTargetPosition();
     
-    // 添加相对位置命令方法
+    // 相对位置命令
     bool setRelativePositionCommand(int32_t position);
     
     // 速度控制
     bool setTargetVelocity(int32_t velocity);
     bool setTargetVelocityPDO(int32_t velocity);
     int32_t getVelocity();
+    int32_t getCurrentVelocity();
+    
+    // 轮廓参数设置
+    bool setProfileVelocity(uint32_t velocity);
+    bool setProfileAcceleration(uint32_t acceleration);
+    uint32_t getProfileVelocity();
+    uint32_t getProfileAcceleration();
     
     // 回零功能
     bool startHoming(uint8_t method);
@@ -76,19 +86,11 @@ public:
     bool isTargetReached();
     bool isFault();
     
-    // 位置和速度获取
-    int32_t getPosition();
-    int32_t getVelocity();
-    int32_t getTargetPosition();
-    
     // 参数保存
     bool saveParameters();
     
     // 齿轮比设置
     bool setGearRatio(uint16_t numerator, uint16_t denominator);
-    
-    // 设置相对位置命令
-    bool setRelativePositionCommand(int32_t position);
     
 private:
     std::shared_ptr<CANopenDriver> canopen_;
