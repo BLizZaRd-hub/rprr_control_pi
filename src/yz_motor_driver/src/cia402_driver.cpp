@@ -656,4 +656,30 @@ bool CiA402Driver::saveParameters() {
     return true;
 }
 
+int32_t CiA402Driver::getVelocity() {
+    static auto last_read_time = std::chrono::steady_clock::now();
+    auto current_time = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        current_time - last_read_time).count();
+    
+    // 如果距离上次读取不到100ms，则返回缓存的速度
+    static int32_t cached_velocity = 0;
+    if (elapsed < 100) {
+        return cached_velocity;
+    }
+    
+    // 更新时间戳
+    last_read_time = current_time;
+    
+    // 读取速度
+    int32_t velocity = 0;
+    if (!canopen_->readSDO<int32_t>(0x606C, 0, velocity)) {
+        std::cerr << "Failed to read velocity" << std::endl;
+        return cached_velocity;  // 读取失败时返回缓存的速度
+    }
+    
+    cached_velocity = velocity;
+    return velocity;
+}
+
 } // namespace yz_motor_driver
