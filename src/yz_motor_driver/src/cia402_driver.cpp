@@ -82,10 +82,10 @@ bool CiA402Driver::setOperationMode(OperationMode mode) {
     return canopen_->writeSDO<uint8_t>(0x6060, 0, static_cast<uint8_t>(mode));
 }
 
-OperationMode CiA402Driver::getOperationMode() {
+int8_t CiA402Driver::getOperationMode() {
     int8_t mode = 0;
     canopen_->readSDO<int8_t>(0x6061, 0, mode);  // 读取当前操作模式显示
-    return static_cast<OperationMode>(mode);
+    return mode;
 }
 
 bool CiA402Driver::setTargetPosition(int32_t position, bool absolute, bool immediate) {

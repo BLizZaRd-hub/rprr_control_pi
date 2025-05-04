@@ -263,7 +263,7 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
     }
     
     // 1. 确保电机处于位置模式
-    if (cia402_driver_->getOperationMode() != OperationMode::PROFILE_POSITION) {
+    if (cia402_driver_->getOperationMode() != static_cast<int8_t>(OperationMode::PROFILE_POSITION)) {
         RCLCPP_INFO(this->get_logger(), "Setting operation mode to Profile Position");
         if (!cia402_driver_->setOperationMode(OperationMode::PROFILE_POSITION)) {
             RCLCPP_ERROR(this->get_logger(), "Failed to set Profile Position mode");

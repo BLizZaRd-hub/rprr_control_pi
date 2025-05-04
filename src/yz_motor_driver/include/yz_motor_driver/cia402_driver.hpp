@@ -52,7 +52,7 @@ public:
     // 操作模式设置
     bool setOperationMode(OperationMode mode);
     OperationMode getOperationMode();
-    // int8_t getOperationMode();
+    int8_t getOperationMode();
 
     // 位置控制
     bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = true);
@@ -78,7 +78,6 @@ public:
     bool setProfileAcceleration(uint32_t acceleration);
     bool setGearRatio(uint16_t numerator, uint16_t denominator);
     uint16_t getControlWord();
-    int32_t getTargetPosition();
     uint32_t getProfileVelocity();
     uint32_t getProfileAcceleration();
 
