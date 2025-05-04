@@ -396,55 +396,29 @@ bool CiA402Driver::transitionToState(CiA402State target_state, std::chrono::mill
 }
 
 CiA402State CiA402Driver::getStateFromStatusWord(uint16_t status_word) {
-    // 打印状态字以便调试
-    std::cerr << "Status word: 0x" << std::hex << status_word << std::dec << std::endl;
+    // 根据CiA 402规范解析状态字，使用正确的掩码
+    // 注意：这里使用更精确的掩码和状态值判断
     
-    // 检查故障状态 (Bit 3)
-    if ((status_word & (1 << 3)) != 0) {
-        return CiA402State::FAULT;
-    }
-    
-    // 检查故障反应激活状态 (Bit 0 = 0, Bit 1 = 1, Bit 2 = 1, Bit 3 = 0)
-    if ((status_word & 0x0F) == 0x06) {
-        return CiA402State::FAULT_REACTION_ACTIVE;
-    }
-    
-    // 检查快速停止激活状态 (Bit 5 = 0)
-    if ((status_word & (1 << 5)) == 0) {
-        return CiA402State::QUICK_STOP_ACTIVE;
-    }
-    
-    // 检查操作使能状态 (Bit 0 = 1, Bit 1 = 1, Bit 2 = 1, Bit 3 = 0, Bit 5 = 1, Bit 6 = 0)
-    if ((status_word & 0x6F) == 0x27) {
-        return CiA402State::OPERATION_ENABLED;
-    }
-    
-    // 检查已切换开状态 (Bit 0 = 1, Bit 1 = 1, Bit 2 = 0, Bit 3 = 0, Bit 5 = 1, Bit 6 = 0)
-    if ((status_word & 0x6F) == 0x23) {
-        return CiA402State::SWITCHED_ON;
-    }
-    
-    // 检查准备切换开状态 (Bit 0 = 1, Bit 1 = 0, Bit 2 = 0, Bit 3 = 0, Bit 5 = 1, Bit 6 = 0)
-    if ((status_word & 0x6F) == 0x21) {
-        return CiA402State::READY_TO_SWITCH_ON;
-    }
-    
-    // 检查切换开禁用状态 (Bit 6 = 1)
-    if ((status_word & (1 << 6)) != 0) {
+    if ((status_word & 0x4F) == 0x00) {
+        return CiA402State::NOT_READY_TO_SWITCH_ON;
+    } else if ((status_word & 0x4F) == 0x40) {
         return CiA402State::SWITCH_ON_DISABLED;
-    }
-    
-    // 非标准状态处理 - 根据你的分析，状态字0x0437可能是一种特殊状态
-    // 如果Bit 0,1,2都为1，且Bit 4,5也为1，我们尝试将其解释为Operation Enabled
-    if ((status_word & 0x37) == 0x37) {
-        std::cerr << "Non-standard status word 0x" << std::hex << status_word 
-                  << " interpreted as OPERATION_ENABLED" << std::dec << std::endl;
+    } else if ((status_word & 0x6F) == 0x21) {
+        return CiA402State::READY_TO_SWITCH_ON;
+    } else if ((status_word & 0x6F) == 0x23) {
+        return CiA402State::SWITCHED_ON;
+    } else if ((status_word & 0x6F) == 0x27) {
         return CiA402State::OPERATION_ENABLED;
+    } else if ((status_word & 0x6F) == 0x07) {
+        return CiA402State::QUICK_STOP_ACTIVE;
+    } else if ((status_word & 0x4F) == 0x0F) {
+        return CiA402State::FAULT_REACTION_ACTIVE;
+    } else if ((status_word & 0x4F) == 0x08) {
+        return CiA402State::FAULT;
+    } else {
+        std::cerr << "Unknown state, status word: 0x" << std::hex << status_word << std::dec << std::endl;
+        return CiA402State::UNKNOWN;
     }
-    
-    // 如果无法识别状态，返回未知状态
-    std::cerr << "Unknown state from status word: 0x" << std::hex << status_word << std::dec << std::endl;
-    return CiA402State::UNKNOWN;
 }
 
 uint16_t CiA402Driver::getControlWordForState(CiA402State state) {
@@ -501,19 +475,30 @@ bool CiA402Driver::updateStatusWord() {
 }
 
 bool CiA402Driver::enableOperationPDO() {
-    // 1. 检查当前状态
-    updateStatusWord();
+    std::cerr << "Enabling motor operation via PDO..." << std::endl;
+    
+    // 1. 获取当前状态
     CiA402State current_state = getState();
-    std::cerr << "Current state before enable: " << static_cast<int>(current_state) << std::endl;
+    std::cerr << "Current state before PDO enable: " << static_cast<int>(current_state) << std::endl;
     
     // 2. 如果处于故障状态，先尝试清除故障
     if (current_state == CiA402State::FAULT) {
-        std::cerr << "Motor in FAULT state, attempting to reset fault via PDO" << std::endl;
+        std::cerr << "Device in FAULT state, attempting to reset fault via PDO" << std::endl;
         
-        // 发送故障复位命令 (0x80)
-        std::vector<uint8_t> fault_reset_data = {0x80, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
-        if (!canopen_->sendPDO(1, fault_reset_data)) {
+        // 发送故障复位控制字 (0x80)
+        std::vector<uint8_t> reset_data = {0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        if (!canopen_->sendPDO(1, reset_data)) {
             std::cerr << "Failed to send fault reset PDO" << std::endl;
+            return false;
+        }
+        
+        // 等待一段时间
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // 清除故障复位位
+        std::vector<uint8_t> clear_reset_data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        if (!canopen_->sendPDO(1, clear_reset_data)) {
+            std::cerr << "Failed to clear fault reset PDO" << std::endl;
             return false;
         }
         
@@ -529,7 +514,7 @@ bool CiA402Driver::enableOperationPDO() {
     // 3. 按照CiA402状态机顺序发送控制字
     
     // 3.1 发送Shutdown命令 (0x06) - 转到Ready to Switch On状态
-    std::vector<uint8_t> shutdown_data = {0x06, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    std::vector<uint8_t> shutdown_data = {0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     if (!canopen_->sendPDO(1, shutdown_data)) {
         std::cerr << "Failed to send shutdown PDO" << std::endl;
         return false;
@@ -542,7 +527,7 @@ bool CiA402Driver::enableOperationPDO() {
     std::cerr << "After shutdown command, state: " << static_cast<int>(current_state) << std::endl;
     
     // 3.2 发送Switch On命令 (0x07) - 转到Switched On状态
-    std::vector<uint8_t> switch_on_data = {0x07, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    std::vector<uint8_t> switch_on_data = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     if (!canopen_->sendPDO(1, switch_on_data)) {
         std::cerr << "Failed to send switch on PDO" << std::endl;
         return false;
@@ -555,7 +540,7 @@ bool CiA402Driver::enableOperationPDO() {
     std::cerr << "After switch on command, state: " << static_cast<int>(current_state) << std::endl;
     
     // 3.3 发送Enable Operation命令 (0x0F) - 转到Operation Enabled状态
-    std::vector<uint8_t> enable_data = {0x0F, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    std::vector<uint8_t> enable_data = {0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     if (!canopen_->sendPDO(1, enable_data)) {
         std::cerr << "Failed to send enable operation PDO" << std::endl;
         return false;
@@ -585,46 +570,51 @@ bool CiA402Driver::setTargetPositionPDO(int32_t position, bool absolute) {
         ctrl_word |= (1 << 6);  // 设置Bit 6 = 1 (相对位置模式)
     }
     
-    // 设置新位置命令位
-    ctrl_word |= (1 << 4);  // 设置Bit 4 = 1 (新位置)
+    // 设置新设定点位，触发运动
+    ctrl_word |= (1 << 4);  // 设置Bit 4 = 1 (新设定点)
     
-    // 准备RPDO数据
+    // 操作模式：位置模式 = 1
+    uint8_t mode = 1;  
+    
+    // 准备PDO数据（注意小端序）
     std::vector<uint8_t> data = {
+        static_cast<uint8_t>(ctrl_word & 0xFF),               // 控制字低字节
+        static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),        // 控制字高字节
+        mode, 0x00,                                           // 操作模式和填充字节
+        static_cast<uint8_t>(position & 0xFF),                // 位置值字节0（最低位）
+        static_cast<uint8_t>((position >> 8) & 0xFF),         // 位置值字节1
+        static_cast<uint8_t>((position >> 16) & 0xFF),        // 位置值字节2
+        static_cast<uint8_t>((position >> 24) & 0xFF)         // 位置值字节3（最高位）
+    };
+    
+    // 记录详细日志（使用DEBUG级别避免过多输出）
+    std::cout << "Sending position command via PDO: " << position 
+              << ", control word: 0x" << std::hex << ctrl_word 
+              << ", mode: " << std::dec << static_cast<int>(mode)
+              << ", absolute: " << (absolute ? "yes" : "no") << std::endl;
+    
+    // 发送PDO
+    bool result = canopen_->sendPDO(1, data);
+    
+    // 等待短暂时间，确保命令被处理
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    
+    // 重要：清除新设定点位，为下一次命令做准备
+    // 这一步可能是可选的，取决于驱动器行为，但建议执行以确保稳定性
+    ctrl_word &= ~(1 << 4);  // 清除Bit 4 (新设定点)
+    
+    std::vector<uint8_t> reset_data = {
         static_cast<uint8_t>(ctrl_word & 0xFF),
         static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
-        0x01,  // 操作模式：位置模式 (1)
-        0x00,  // 保留字节
+        mode, 0x00,
         static_cast<uint8_t>(position & 0xFF),
         static_cast<uint8_t>((position >> 8) & 0xFF),
         static_cast<uint8_t>((position >> 16) & 0xFF),
         static_cast<uint8_t>((position >> 24) & 0xFF)
     };
     
-    // 发送RPDO
-    bool result = canopen_->sendPDO(1, data);
-    
-    if (result) {
-        // 清除新位置命令位
-        ctrl_word &= ~(1 << 4);  // 清除Bit 4
-        
-        // 准备清除命令位的RPDO数据
-        std::vector<uint8_t> clear_data = {
-            static_cast<uint8_t>(ctrl_word & 0xFF),
-            static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
-            0x01,  // 操作模式：位置模式 (1)
-            0x00,  // 保留字节
-            static_cast<uint8_t>(position & 0xFF),
-            static_cast<uint8_t>((position >> 8) & 0xFF),
-            static_cast<uint8_t>((position >> 16) & 0xFF),
-            static_cast<uint8_t>((position >> 24) & 0xFF)
-        };
-        
-        // 等待一小段时间
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        
-        // 发送清除命令位的RPDO
-        canopen_->sendPDO(1, clear_data);
-    }
+    // 发送重置控制字的PDO
+    canopen_->sendPDO(1, reset_data);
     
     return result;
 }
