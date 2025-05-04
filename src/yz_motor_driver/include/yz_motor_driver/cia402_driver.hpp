@@ -91,9 +91,6 @@ public:
     // 齿轮比设置
     bool setGearRatio(uint16_t numerator, uint16_t denominator);
     
-    // 设置相对位置命令
-    bool setRelativePositionCommand(int32_t position);
-    
 private:
     std::shared_ptr<CANopenDriver> canopen_;
     uint16_t status_word_;

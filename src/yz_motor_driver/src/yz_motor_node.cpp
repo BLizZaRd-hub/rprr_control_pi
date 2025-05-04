@@ -4,15 +4,17 @@
 
 namespace yz_motor_driver {
 
-YZMotorNode::YZMotorNode(const rclcpp::NodeOptions& options)
-    : Node("yz_motor_node", options) {
+YZMotorNode::YZMotorNode()
+    : Node("yz_motor_node") {
     // 声明参数
     this->declare_parameter("can_interface", "can0");
-    this->declare_parameter("node_id", 3);
-    this->declare_parameter("position_scale", 10000.0);
-    this->declare_parameter("velocity_scale", 1.0);
-    this->declare_parameter("profile_velocity", 1000);
-    this->declare_parameter("profile_acceleration", 1000);
+    this->declare_parameter("node_id", 1);
+    this->declare_parameter("position_scale", 32768.0);  // 1圈 = 32768个编码器脉冲
+    this->declare_parameter("velocity_scale", 10.0);     // 速度值 = rpm / 10
+    this->declare_parameter("profile_velocity", 1000);  // 默认速度
+    this->declare_parameter("profile_acceleration", 1000);  // 默认加速度
+    this->declare_parameter("enable_status_monitoring", true);
+    enable_status_monitoring_ = this->get_parameter("enable_status_monitoring").as_bool();
     
     // 获取参数
     can_interface_ = this->get_parameter("can_interface").as_string();
@@ -29,15 +31,24 @@ YZMotorNode::YZMotorNode(const rclcpp::NodeOptions& options)
         return;
     }
     
-    // 创建CiA402驱动
     cia402_driver_ = std::make_shared<CiA402Driver>(canopen_driver_);
+    if (!cia402_driver_->init()) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to initialize CiA402 driver");
+        return;
+    }
     
-    // 注意：不再自动尝试使能电机，而是等待使能服务被调用
-    RCLCPP_INFO(this->get_logger(), "Motor driver initialized. Please call the enable service to enable the motor.");
+    // 设置电机速度和加速度参数
+    if (cia402_driver_) {
+        cia402_driver_->setProfileVelocity(current_profile_velocity_);
+        cia402_driver_->setProfileAcceleration(current_profile_acceleration_);
+        RCLCPP_INFO(this->get_logger(), "Set profile velocity: %d, acceleration: %d", 
+                    current_profile_velocity_, current_profile_acceleration_);
+    }
     
     // 创建服务
-    enable_service_ = this->create_service<std_srvs::srv::Trigger>(
-        "enable", std::bind(&YZMotorNode::enableCallback, this, std::placeholders::_1, std::placeholders::_2));
+    enable_srv_ = this->create_service<std_srvs::srv::Trigger>(
+        "enable",
+        std::bind(&YZMotorNode::enableCallback, this, std::placeholders::_1, std::placeholders::_2));
     
     disable_srv_ = this->create_service<std_srvs::srv::Trigger>(
         "disable",
@@ -283,15 +294,7 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
         return;
     }
     
-    // 1. 检查电机是否已经处于使能状态
-    CiA402State state = cia402_driver_->getState();
-    if (state != CiA402State::OPERATION_ENABLED) {
-        RCLCPP_ERROR(this->get_logger(), "Motor not enabled. Current state: %d", static_cast<int>(state));
-        RCLCPP_INFO(this->get_logger(), "Please call the enable service first");
-        return;
-    }
-    
-    // 2. 确保电机处于位置模式
+    // 1. 确保电机处于位置模式
     if (cia402_driver_->getOperationMode() != OperationMode::PROFILE_POSITION) {
         RCLCPP_INFO(this->get_logger(), "Setting operation mode to Profile Position");
         if (!cia402_driver_->setOperationMode(OperationMode::PROFILE_POSITION)) {
@@ -299,7 +302,61 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
             return;
         }
         // 给驱动器更多时间来切换模式
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    
+    // 2. 确保电机已使能
+    CiA402State state = cia402_driver_->getState();
+    if (state != CiA402State::OPERATION_ENABLED) {
+        RCLCPP_INFO(this->get_logger(), "Motor not in Operation Enabled state. Current state: %d", 
+                   static_cast<int>(state));
+        
+        // 如果处于故障状态，先尝试清除故障
+        if (state == CiA402State::FAULT) {
+            RCLCPP_WARN(this->get_logger(), "Motor in FAULT state, attempting to reset fault");
+            if (!cia402_driver_->resetFault()) {
+                RCLCPP_ERROR(this->get_logger(), "Failed to reset fault");
+                return;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            state = cia402_driver_->getState();
+            RCLCPP_INFO(this->get_logger(), "After fault reset, state: %d", static_cast<int>(state));
+        }
+        
+        // 尝试使能电机
+        RCLCPP_INFO(this->get_logger(), "Enabling motor operation");
+        if (!cia402_driver_->enableOperation()) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to enable motor operation");
+            
+            // 尝试使用PDO方式使能
+            RCLCPP_INFO(this->get_logger(), "Trying to enable via PDO");
+            if (!cia402_driver_->enableOperationPDO()) {
+                RCLCPP_ERROR(this->get_logger(), "Failed to enable motor via PDO");
+                return;
+            }
+            
+            // 等待使能完成
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            state = cia402_driver_->getState();
+            if (state != CiA402State::OPERATION_ENABLED) {
+                RCLCPP_ERROR(this->get_logger(), "Motor still not enabled after PDO attempt. State: %d", 
+                           static_cast<int>(state));
+                return;
+            }
+        }
+        
+        // 给驱动器更多时间来使能
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        
+        // 再次检查状态
+        state = cia402_driver_->getState();
+        if (state != CiA402State::OPERATION_ENABLED) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to enable motor. Current state: %d", 
+                       static_cast<int>(state));
+            return;
+        }
+        
+        RCLCPP_INFO(this->get_logger(), "Motor successfully enabled");
     }
     
     // 3. 将角度转换为编码器脉冲
@@ -307,10 +364,13 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
     RCLCPP_DEBUG(this->get_logger(), "Converting %.2f degrees to %d encoder pulses (scale: %.2f)", 
                 msg->data, position, position_scale_);
     
-    // 4. 发送相对位置命令 (使用0x005F控制字，设置Bit6=1表示相对模式，Bit4=1触发运动)
-    bool result = cia402_driver_->setRelativePositionCommand(position);
+    // 4. 发送相对位置命令
+    bool result = cia402_driver_->setTargetPositionPDO(position, false);
     RCLCPP_INFO(this->get_logger(), "Relative position command (%.2f deg) sent: %s", 
                 msg->data, result ? "success" : "failed");
+    
+    // 5. 等待命令开始执行
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 void YZMotorNode::velocityCmdCallback(const std_msgs::msg::Int32::SharedPtr msg) {
