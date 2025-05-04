@@ -769,4 +769,35 @@ int32_t CiA402Driver::getVelocity() {
     return velocity;
 }
 
+bool CiA402Driver::setRelativePositionCommand(int32_t position) {
+    // 1. 设置目标位置
+    if (!canopen_->writeSDO<int32_t>(0x607A, 0, position)) {
+        std::cerr << "Failed to set target position" << std::endl;
+        return false;
+    }
+    
+    // 2. 发送相对位置命令控制字 (0x005F)
+    // 0x000F - 基本使能位
+    // 0x0010 - Bit 4 (New setpoint)
+    // 0x0040 - Bit 6 (相对位置模式)
+    // 0x005F = 0x000F | 0x0010 | 0x0040
+    uint16_t ctrl_word = 0x005F;
+    
+    std::cout << "Sending relative position command with control word: 0x" 
+              << std::hex << ctrl_word << std::dec 
+              << " for position: " << position << std::endl;
+    
+    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, ctrl_word)) {
+        std::cerr << "Failed to send relative position command" << std::endl;
+        return false;
+    }
+    
+    // 3. 等待一小段时间
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    // 4. 清除New setpoint位，保持其他位不变 (0x004F)
+    ctrl_word = 0x004F;  // 清除Bit 4，保持Bit 6
+    return canopen_->writeSDO<uint16_t>(0x6040, 0, ctrl_word);
+}
+
 } // namespace yz_motor_driver
