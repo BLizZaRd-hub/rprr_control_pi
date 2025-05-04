@@ -130,58 +130,10 @@ void YZMotorNode::enableCallback(
         return;
     }
     
-    // 获取当前状态
-    CiA402State state = cia402_driver_->getState();
-    RCLCPP_INFO(this->get_logger(), "Current state before enable: %d", static_cast<int>(state));
-    
-    // 如果处于故障状态，先尝试清除故障
-    if (state == CiA402State::FAULT) {
-        RCLCPP_WARN(this->get_logger(), "Motor in FAULT state, attempting to reset fault");
-        if (!cia402_driver_->resetFault()) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to reset fault");
-            response->success = false;
-            response->message = "Failed to reset fault";
-            return;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        state = cia402_driver_->getState();
-        RCLCPP_INFO(this->get_logger(), "After fault reset, state: %d", static_cast<int>(state));
-    }
-    
-    // 尝试使用PDO使能
-    RCLCPP_INFO(this->get_logger(), "Enabling motor using PDO");
+    // 使用PDO而不是SDO
     bool result = cia402_driver_->enableOperationPDO();
-    
-    // 等待使能完成
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    // 检查状态
-    state = cia402_driver_->getState();
-    if (state != CiA402State::OPERATION_ENABLED) {
-        RCLCPP_WARN(this->get_logger(), "PDO enable did not reach Operation Enabled state. Current state: %d", 
-                   static_cast<int>(state));
-        
-        // 尝试使用SDO使能
-        RCLCPP_INFO(this->get_logger(), "Trying to enable via SDO");
-        result = cia402_driver_->enableOperation();
-        
-        // 等待使能完成
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        
-        // 再次检查状态
-        state = cia402_driver_->getState();
-        if (state != CiA402State::OPERATION_ENABLED) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to enable motor. Current state: %d", 
-                       static_cast<int>(state));
-            response->success = false;
-            response->message = "Failed to enable motor operation";
-            return;
-        }
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "Motor successfully enabled");
-    response->success = true;
-    response->message = "Motor enabled successfully";
+    response->success = result;
+    response->message = result ? "Motor enabled using PDO" : "Failed to enable motor";
 }
 
 void YZMotorNode::disableCallback(
@@ -312,67 +264,26 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
     
     // 1. 确保电机处于位置模式
     if (cia402_driver_->getOperationMode() != OperationMode::PROFILE_POSITION) {
-        RCLCPP_INFO(this->get_logger(), "Setting operation mode to Profile Position");
+        RCLCPP_DEBUG(this->get_logger(), "Setting operation mode to Profile Position");
         if (!cia402_driver_->setOperationMode(OperationMode::PROFILE_POSITION)) {
             RCLCPP_ERROR(this->get_logger(), "Failed to set Profile Position mode");
             return;
         }
-        // 给驱动器更多时间来切换模式
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        // 给驱动器一些时间来切换模式
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     
     // 2. 确保电机已使能
     CiA402State state = cia402_driver_->getState();
     if (state != CiA402State::OPERATION_ENABLED) {
-        RCLCPP_INFO(this->get_logger(), "Motor not in Operation Enabled state. Current state: %d", 
-                   static_cast<int>(state));
-        
-        // 如果处于故障状态，先尝试清除故障
-        if (state == CiA402State::FAULT) {
-            RCLCPP_WARN(this->get_logger(), "Motor in FAULT state, attempting to reset fault");
-            if (!cia402_driver_->resetFault()) {
-                RCLCPP_ERROR(this->get_logger(), "Failed to reset fault");
-                return;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            state = cia402_driver_->getState();
-            RCLCPP_INFO(this->get_logger(), "After fault reset, state: %d", static_cast<int>(state));
-        }
-        
-        // 尝试使能电机
-        RCLCPP_INFO(this->get_logger(), "Enabling motor operation");
+        // 将INFO改为DEBUG
+        RCLCPP_DEBUG(this->get_logger(), "Enabling motor operation");
         if (!cia402_driver_->enableOperation()) {
             RCLCPP_ERROR(this->get_logger(), "Failed to enable motor operation");
-            
-            // 尝试使用PDO方式使能
-            RCLCPP_INFO(this->get_logger(), "Trying to enable via PDO");
-            if (!cia402_driver_->enableOperationPDO()) {
-                RCLCPP_ERROR(this->get_logger(), "Failed to enable motor via PDO");
-                return;
-            }
-            
-            // 等待使能完成
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            state = cia402_driver_->getState();
-            if (state != CiA402State::OPERATION_ENABLED) {
-                RCLCPP_ERROR(this->get_logger(), "Motor still not enabled after PDO attempt. State: %d", 
-                           static_cast<int>(state));
-                return;
-            }
-        }
-        
-        // 给驱动器更多时间来使能
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        
-        // 再次检查状态
-        state = cia402_driver_->getState();
-        if (state != CiA402State::OPERATION_ENABLED) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to enable motor. Current state: %d", 
-                       static_cast<int>(state));
             return;
         }
-        
-        RCLCPP_INFO(this->get_logger(), "Motor successfully enabled");
+        // 给驱动器一些时间来使能
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     
     // 3. 将角度转换为编码器脉冲
@@ -382,11 +293,12 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
     
     // 4. 发送相对位置命令
     bool result = cia402_driver_->setTargetPositionPDO(position, false);
+    // 保留这个INFO级别的日志，因为这是关键操作结果
     RCLCPP_INFO(this->get_logger(), "Relative position command (%.2f deg) sent: %s", 
                 msg->data, result ? "success" : "failed");
     
     // 5. 等待命令开始执行
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
 
 void YZMotorNode::velocityCmdCallback(const std_msgs::msg::Int32::SharedPtr msg) {
