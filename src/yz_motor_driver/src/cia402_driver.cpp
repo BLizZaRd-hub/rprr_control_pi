@@ -30,22 +30,20 @@ bool CiA402Driver::init() {
 }
 
 bool CiA402Driver::enableOperation() {
-    // 将std::cout改为注释或移除
-    // std::cout << "Enabling motor operation..." << std::endl;
+    std::cout << "Enabling motor operation..." << std::endl;
     
     // 1. 获取当前状态
     CiA402State current_state = getState();
-    // std::cout << "Current state: " << static_cast<int>(current_state) << std::endl;
+    std::cout << "Current state: " << static_cast<int>(current_state) << std::endl;
     
     // 2. 按照状态机顺序使能操作
     bool result = transitionToState(CiA402State::OPERATION_ENABLED);
     
-    // 将这些输出也改为注释或移除
-    // if (result) {
-    //     std::cout << "Motor enabled successfully" << std::endl;
-    // } else {
-    //     std::cerr << "Failed to enable motor" << std::endl;
-    // }
+    if (result) {
+        std::cout << "Motor enabled successfully" << std::endl;
+    } else {
+        std::cerr << "Failed to enable motor" << std::endl;
+    }
     
     return result;
 }
@@ -319,15 +317,15 @@ bool CiA402Driver::updateStatusWord() {
     
     status_word_ = new_status_word;
     
-    // 将详细的状态输出改为调试级别的日志，使用std::cout的地方改为注释
-    // std::cout << "Status Word: 0x" << std::hex << status_word_ << std::dec << std::endl;
-    // std::cout << "  Ready to Switch On: " << ((status_word_ & 0x0001) ? "Yes" : "No") << std::endl;
-    // std::cout << "  Switched On: " << ((status_word_ & 0x0002) ? "Yes" : "No") << std::endl;
-    // std::cout << "  Operation Enabled: " << ((status_word_ & 0x0004) ? "Yes" : "No") << std::endl;
-    // std::cout << "  Fault: " << ((status_word_ & 0x0008) ? "Yes" : "No") << std::endl;
-    // std::cout << "  Quick Stop: " << ((status_word_ & 0x0020) ? "No" : "Yes") << std::endl;
-    // std::cout << "  Switch On Disabled: " << ((status_word_ & 0x0040) ? "Yes" : "No") << std::endl;
-    // std::cout << "  Target Reached: " << ((status_word_ & 0x0400) ? "Yes" : "No") << std::endl;
+    // 打印状态字详细信息
+    std::cout << "Status Word: 0x" << std::hex << status_word_ << std::dec << std::endl;
+    std::cout << "  Ready to Switch On: " << ((status_word_ & 0x0001) ? "Yes" : "No") << std::endl;
+    std::cout << "  Switched On: " << ((status_word_ & 0x0002) ? "Yes" : "No") << std::endl;
+    std::cout << "  Operation Enabled: " << ((status_word_ & 0x0004) ? "Yes" : "No") << std::endl;
+    std::cout << "  Fault: " << ((status_word_ & 0x0008) ? "Yes" : "No") << std::endl;
+    std::cout << "  Quick Stop: " << ((status_word_ & 0x0020) ? "No" : "Yes") << std::endl;
+    std::cout << "  Switch On Disabled: " << ((status_word_ & 0x0040) ? "Yes" : "No") << std::endl;
+    std::cout << "  Target Reached: " << ((status_word_ & 0x0400) ? "Yes" : "No") << std::endl;
     
     return true;
 }
