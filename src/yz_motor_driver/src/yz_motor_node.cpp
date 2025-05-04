@@ -136,63 +136,36 @@ void YZMotorNode::enableCallback(
     
     // 获取当前状态
     CiA402State state = cia402_driver_->getState();
-    RCLCPP_INFO(this->get_logger(), "Current state before enable: %d", static_cast<int>(state));
+    RCLCPP_INFO(this->get_logger(), "Current motor state: %d", static_cast<int>(state));
     
-    // 如果处于故障状态，先尝试清除故障
-    if (state == CiA402State::FAULT) {
-        RCLCPP_WARN(this->get_logger(), "Motor in FAULT state, attempting to reset fault");
-        if (!cia402_driver_->resetFault()) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to reset fault");
-            response->success = false;
-            response->message = "Failed to reset fault";
-            return;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        state = cia402_driver_->getState();
-        RCLCPP_INFO(this->get_logger(), "After fault reset, state: %d", static_cast<int>(state));
+    // 如果已经处于使能状态，直接返回成功
+    if (state == CiA402State::OPERATION_ENABLED) {
+        response->success = true;
+        response->message = "Motor already enabled";
+        return;
     }
     
-    // 尝试使用PDO使能
-    RCLCPP_INFO(this->get_logger(), "Enabling motor using PDO");
-    if (!cia402_driver_->enableOperationPDO()) {
-        RCLCPP_WARN(this->get_logger(), "Failed to enable motor using PDO");
+    // 首先尝试使用SDO使能
+    RCLCPP_INFO(this->get_logger(), "Enabling motor using SDO");
+    if (cia402_driver_->enableOperation()) {
+        response->success = true;
+        response->message = "Motor enabled successfully via SDO";
+        return;
     }
     
-    // 等待使能完成
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    RCLCPP_WARN(this->get_logger(), "Failed to enable motor using SDO");
     
-    // 检查状态
-    state = cia402_driver_->getState();
-    if (state != CiA402State::OPERATION_ENABLED) {
-        RCLCPP_WARN(this->get_logger(), "PDO enable did not reach Operation Enabled state. Current state: %d", 
-                   static_cast<int>(state));
-        
-        // 尝试使用SDO使能
-        RCLCPP_INFO(this->get_logger(), "Trying to enable via SDO");
-        if (!cia402_driver_->enableOperation()) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to enable motor via SDO");
-            response->success = false;
-            response->message = "Failed to enable motor operation";
-            return;
-        }
-        
-        // 等待使能完成
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        
-        // 再次检查状态
-        state = cia402_driver_->getState();
-        if (state != CiA402State::OPERATION_ENABLED) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to enable motor. Current state: %d", 
-                       static_cast<int>(state));
-            response->success = false;
-            response->message = "Failed to enable motor operation";
-            return;
-        }
+    // 如果SDO使能失败，尝试使用PDO使能
+    RCLCPP_INFO(this->get_logger(), "Trying to enable via PDO");
+    if (cia402_driver_->enableOperationPDO()) {
+        response->success = true;
+        response->message = "Motor enabled successfully via PDO";
+        return;
     }
     
-    RCLCPP_INFO(this->get_logger(), "Motor successfully enabled");
-    response->success = true;
-    response->message = "Motor enabled successfully";
+    // 如果两种方式都失败，返回错误
+    response->success = false;
+    response->message = "Failed to enable motor via both SDO and PDO";
 }
 
 void YZMotorNode::disableCallback(
