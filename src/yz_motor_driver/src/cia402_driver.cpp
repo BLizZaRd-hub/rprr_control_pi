@@ -429,28 +429,23 @@ uint16_t CiA402Driver::getControlWordForState(CiA402State state) {
 }
 
 bool CiA402Driver::updateStatusWord() {
-    // 添加时间检查，避免过于频繁地更新
-    static auto last_update_time = std::chrono::steady_clock::now();
-    auto current_time = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        current_time - last_update_time).count();
-    
-    // 如果距离上次更新不到100ms，则跳过本次更新
-    if (elapsed < 100) {
-        return true;  // 返回true表示状态没有问题
-    }
-    
-    // 更新时间戳
-    last_update_time = current_time;
-    
-    // 原有的更新逻辑
-    uint16_t status = 0;
-    if (!canopen_->readSDO<uint16_t>(0x6041, 0, status)) {
-        std::cerr << "Failed to read status word" << std::endl;
+    uint16_t new_status_word = 0;
+    if (!canopen_->readSDO<uint16_t>(0x6041, 0, new_status_word)) {
         return false;
     }
     
-    status_word_ = status;
+    status_word_ = new_status_word;
+    
+    // 将详细的状态输出改为调试级别的日志，使用std::cout的地方改为注释
+    // std::cout << "Status Word: 0x" << std::hex << status_word_ << std::dec << std::endl;
+    // std::cout << "  Ready to Switch On: " << ((status_word_ & 0x0001) ? "Yes" : "No") << std::endl;
+    // std::cout << "  Switched On: " << ((status_word_ & 0x0002) ? "Yes" : "No") << std::endl;
+    // std::cout << "  Operation Enabled: " << ((status_word_ & 0x0004) ? "Yes" : "No") << std::endl;
+    // std::cout << "  Fault: " << ((status_word_ & 0x0008) ? "Yes" : "No") << std::endl;
+    // std::cout << "  Quick Stop: " << ((status_word_ & 0x0020) ? "No" : "Yes") << std::endl;
+    // std::cout << "  Switch On Disabled: " << ((status_word_ & 0x0040) ? "Yes" : "No") << std::endl;
+    // std::cout << "  Target Reached: " << ((status_word_ & 0x0400) ? "Yes" : "No") << std::endl;
+    
     return true;
 }
 

@@ -39,7 +39,6 @@ private:
     int node_id_;
     double position_scale_;
     double velocity_scale_;
-    bool enable_status_monitoring_;
     
     // ROS2服务
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr enable_srv_;
