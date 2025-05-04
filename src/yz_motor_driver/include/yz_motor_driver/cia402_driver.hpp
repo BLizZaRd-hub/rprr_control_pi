@@ -46,7 +46,7 @@ public:
 
     // PDO通信方法
     bool enableOperationPDO();
-    bool setTargetPositionPDO(int32_t position);
+    bool setTargetPositionPDO(int32_t position, bool absolute = true);
     bool setTargetVelocityPDO(int32_t velocity);
 
     // 操作模式设置

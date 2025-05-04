@@ -9,6 +9,8 @@ def generate_launch_description():
     node_id = LaunchConfiguration('node_id', default='1')
     position_scale = LaunchConfiguration('position_scale', default='32768.0')
     velocity_scale = LaunchConfiguration('velocity_scale', default='10.0')
+    profile_velocity = LaunchConfiguration('profile_velocity', default='1000')
+    profile_acceleration = LaunchConfiguration('profile_acceleration', default='1000')
     
     return LaunchDescription([
         # 参数声明
@@ -32,6 +34,16 @@ def generate_launch_description():
             default_value='10.0',
             description='Velocity scale (rpm / scale)'),
         
+        DeclareLaunchArgument(
+            'profile_velocity',
+            default_value='1000',
+            description='Profile velocity for position mode'),
+        
+        DeclareLaunchArgument(
+            'profile_acceleration',
+            default_value='1000',
+            description='Profile acceleration for position mode'),
+        
         # 节点
         Node(
             package='yz_motor_driver',
@@ -42,6 +54,8 @@ def generate_launch_description():
                 'node_id': node_id,
                 'position_scale': position_scale,
                 'velocity_scale': velocity_scale,
+                'profile_velocity': profile_velocity,
+                'profile_acceleration': profile_acceleration,
             }],
             output='screen'
         )
