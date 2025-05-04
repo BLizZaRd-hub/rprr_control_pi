@@ -43,60 +43,50 @@ public:
     bool disableOperation();
     bool quickStop();
     bool resetFault();
+    bool enableOperationPDO();  // 添加PDO使能方法
+
+    // 状态转换
+    bool transitionToState(CiA402State target_state, std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
+    
+    // 状态获取
+    CiA402State getState();
+    CiA402State getStateFromStatusWord(uint16_t status_word);
+    uint16_t getControlWordForState(CiA402State state);
+    bool updateStatusWord();
+    uint16_t getStatusWord();
 
     // PDO通信方法
-    bool enableOperationPDO();
     bool setTargetPositionPDO(int32_t position, bool absolute = true);
     bool setTargetVelocityPDO(int32_t velocity);
 
     // 操作模式设置
     bool setOperationMode(OperationMode mode);
     OperationMode getOperationMode();
-    // int8_t getOperationMode();
 
     // 位置控制
     bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = true);
     int32_t getCurrentPosition();
-    int32_t getTargetPosition();  // 保留这一个声明
+    int32_t getTargetPosition();
 
     // 速度控制
     bool setTargetVelocity(int32_t velocity);
     int32_t getCurrentVelocity();
 
-    // 回零控制
-    bool startHoming(uint8_t method);
-    bool isHomingComplete();
-
-    // 状态监控
-    uint16_t getStatusWord();
-    CiA402State getState();
-    bool isTargetReached();
-    bool isFault();
-
-    // 参数设置
+    // 其他参数设置
     bool setProfileVelocity(uint32_t velocity);
     bool setProfileAcceleration(uint32_t acceleration);
-    bool setGearRatio(uint16_t numerator, uint16_t denominator);
-    uint16_t getControlWord();
-    uint32_t getProfileVelocity();
-    uint32_t getProfileAcceleration();
-
-    // 参数保存
+    bool setProfileDeceleration(uint32_t deceleration);
     bool saveParameters();
+
+    // 回零功能
+    bool startHoming(uint8_t method);
+    bool isHomingComplete();
 
 private:
     std::shared_ptr<CANopenDriver> canopen_;
     uint16_t control_word_ = 0;
     uint16_t status_word_ = 0;
-    OperationMode operation_mode_ = OperationMode::PROFILE_POSITION;
-
-    // 状态机辅助函数
-    bool transitionToState(CiA402State target_state, std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
-    CiA402State getStateFromStatusWord(uint16_t status_word);
-    uint16_t getControlWordForState(CiA402State state);
-
-    // 更新状态字
-    bool updateStatusWord();
+    OperationMode operation_mode_ = OperationMode::NO_MODE;
 };
 
 } // namespace yz_motor_driver

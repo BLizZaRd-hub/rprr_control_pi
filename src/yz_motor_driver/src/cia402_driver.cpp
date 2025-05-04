@@ -30,23 +30,28 @@ bool CiA402Driver::init() {
 }
 
 bool CiA402Driver::enableOperation() {
-    // 将std::cout改为注释或移除
-    // std::cout << "Enabling motor operation..." << std::endl;
+    std::cerr << "Enabling motor operation..." << std::endl;
     
     // 1. 获取当前状态
     CiA402State current_state = getState();
-    // std::cout << "Current state: " << static_cast<int>(current_state) << std::endl;
+    std::cerr << "Current state before enable: " << static_cast<int>(current_state) << std::endl;
     
-    // 2. 按照状态机顺序使能操作
+    // 2. 如果处于故障状态，先尝试清除故障
+    if (current_state == CiA402State::FAULT) {
+        std::cerr << "Device in FAULT state, attempting to reset fault" << std::endl;
+        if (!resetFault()) {
+            std::cerr << "Failed to reset fault" << std::endl;
+            return false;
+        }
+        // 重新获取状态
+        current_state = getState();
+        std::cerr << "After fault reset, state: " << static_cast<int>(current_state) << std::endl;
+    }
+    
+    // 3. 按照状态机顺序使能操作
     bool result = transitionToState(CiA402State::OPERATION_ENABLED);
     
-    // 将这些输出也改为注释或移除
-    // if (result) {
-    //     std::cout << "Motor enabled successfully" << std::endl;
-    // } else {
-    //     std::cerr << "Failed to enable motor" << std::endl;
-    // }
-    
+    std::cerr << "Enable operation result: " << (result ? "success" : "failed") << std::endl;
     return result;
 }
 
@@ -68,15 +73,34 @@ bool CiA402Driver::resetFault() {
         return true;  // 不在故障状态
     }
     
+    std::cerr << "Resetting fault..." << std::endl;
+    
     // 设置Bit 7 (Fault Reset)
-    control_word_ |= (1 << 7);
-    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, control_word_)) {
+    uint16_t reset_cw = 0x0080;  // 只设置Fault Reset位
+    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, reset_cw)) {
+        std::cerr << "Failed to write fault reset control word" << std::endl;
         return false;
     }
     
+    // 等待一段时间
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
     // 清除Bit 7
-    control_word_ &= ~(1 << 7);
-    return canopen_->writeSDO<uint16_t>(0x6040, 0, control_word_);
+    reset_cw = 0x0000;  // 清除所有位
+    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, reset_cw)) {
+        std::cerr << "Failed to clear fault reset control word" << std::endl;
+        return false;
+    }
+    
+    // 等待一段时间
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 检查是否清除了故障
+    updateStatusWord();
+    CiA402State current_state = getState();
+    std::cerr << "After fault reset, state: " << static_cast<int>(current_state) << std::endl;
+    
+    return current_state != CiA402State::FAULT;
 }
 
 bool CiA402Driver::setOperationMode(OperationMode mode) {
@@ -229,41 +253,127 @@ bool CiA402Driver::saveParameters() {
 bool CiA402Driver::transitionToState(CiA402State target_state, std::chrono::milliseconds timeout) {
     auto start_time = std::chrono::steady_clock::now();
     
-    while (std::chrono::steady_clock::now() - start_time < timeout) {
-        // 获取当前状态
-        CiA402State current_state = getState();
-        
-        // 如果已经达到目标状态，返回成功
-        if (current_state == target_state) {
-            return true;
+    // 增加超时时间
+    if (timeout == std::chrono::milliseconds(1000)) {
+        timeout = std::chrono::milliseconds(5000);  // 增加到5秒
+    }
+    
+    // 首先检查当前状态
+    CiA402State current_state = getState();
+    std::cerr << "Current state: " << static_cast<int>(current_state) 
+              << ", Target state: " << static_cast<int>(target_state) << std::endl;
+    
+    // 如果已经处于目标状态，直接返回成功
+    if (current_state == target_state) {
+        std::cerr << "Already in target state" << std::endl;
+        return true;
+    }
+    
+    // 如果处于故障状态，先尝试清除故障
+    if (current_state == CiA402State::FAULT) {
+        std::cerr << "Device in FAULT state, attempting to reset fault" << std::endl;
+        if (!resetFault()) {
+            std::cerr << "Failed to reset fault" << std::endl;
+            return false;
         }
+        // 等待故障清除
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        current_state = getState();
+        std::cerr << "After fault reset, state: " << static_cast<int>(current_state) << std::endl;
+    }
+    
+    // 根据CiA402状态机，按顺序执行状态转换
+    // 不同的目标状态需要不同的转换路径
+    std::vector<CiA402State> transition_path;
+    
+    switch (target_state) {
+        case CiA402State::OPERATION_ENABLED:
+            // 完整路径: NOT_READY -> SWITCH_ON_DISABLED -> READY_TO_SWITCH_ON -> SWITCHED_ON -> OPERATION_ENABLED
+            if (current_state < CiA402State::READY_TO_SWITCH_ON) {
+                transition_path.push_back(CiA402State::READY_TO_SWITCH_ON);
+            }
+            if (current_state < CiA402State::SWITCHED_ON) {
+                transition_path.push_back(CiA402State::SWITCHED_ON);
+            }
+            transition_path.push_back(CiA402State::OPERATION_ENABLED);
+            break;
+            
+        case CiA402State::SWITCHED_ON:
+            if (current_state < CiA402State::READY_TO_SWITCH_ON) {
+                transition_path.push_back(CiA402State::READY_TO_SWITCH_ON);
+            }
+            transition_path.push_back(CiA402State::SWITCHED_ON);
+            break;
+            
+        case CiA402State::READY_TO_SWITCH_ON:
+            transition_path.push_back(CiA402State::READY_TO_SWITCH_ON);
+            break;
+            
+        default:
+            transition_path.push_back(target_state);
+            break;
+    }
+    
+    // 执行状态转换路径
+    for (const auto& state : transition_path) {
+        std::cerr << "Attempting transition to state: " << static_cast<int>(state) << std::endl;
         
-        // 根据当前状态和目标状态设置控制字
-        uint16_t new_control_word = getControlWordForState(target_state);
-        
-        // 如果控制字没有变化，不需要再次写入
-        if (new_control_word == control_word_) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            continue;
-        }
+        // 获取此状态对应的控制字
+        uint16_t new_control_word = getControlWordForState(state);
+        std::cerr << "Setting control word: 0x" << std::hex << new_control_word << std::dec << std::endl;
         
         // 更新控制字并写入
         control_word_ = new_control_word;
         if (!canopen_->writeSDO<uint16_t>(0x6040, 0, control_word_)) {
+            std::cerr << "Failed to write control word: 0x" << std::hex << control_word_ << std::dec << std::endl;
             return false;
         }
         
-        // 等待一段时间
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // 等待状态转换
+        auto state_start_time = std::chrono::steady_clock::now();
+        bool state_reached = false;
+        
+        while (std::chrono::steady_clock::now() - state_start_time < std::chrono::milliseconds(1000)) {
+            // 等待一段时间再检查状态
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            
+            // 更新状态字并检查当前状态
+            if (!updateStatusWord()) {
+                std::cerr << "Failed to update status word" << std::endl;
+                continue;
+            }
+            
+            CiA402State current = getState();
+            std::cerr << "Current state: " << static_cast<int>(current) << std::endl;
+            
+            if (current == state) {
+                state_reached = true;
+                std::cerr << "Successfully transitioned to state: " << static_cast<int>(state) << std::endl;
+                break;
+            }
+        }
+        
+        if (!state_reached) {
+            std::cerr << "Timeout waiting for transition to state: " << static_cast<int>(state) << std::endl;
+            return false;
+        }
     }
     
-    // 超时
-    std::cerr << "Timeout waiting for state transition to " << static_cast<int>(target_state) << std::endl;
-    return false;
+    // 最终检查是否达到目标状态
+    CiA402State final_state = getState();
+    bool success = (final_state == target_state);
+    
+    std::cerr << "Final state: " << static_cast<int>(final_state) 
+              << ", Target state: " << static_cast<int>(target_state)
+              << ", Success: " << (success ? "Yes" : "No") << std::endl;
+    
+    return success;
 }
 
 CiA402State CiA402Driver::getStateFromStatusWord(uint16_t status_word) {
-    // 根据CiA 402规范解析状态字
+    // 根据CiA 402规范解析状态字，使用正确的掩码
+    // 注意：这里使用更精确的掩码和状态值判断
+    
     if ((status_word & 0x4F) == 0x00) {
         return CiA402State::NOT_READY_TO_SWITCH_ON;
     } else if ((status_word & 0x4F) == 0x40) {
@@ -281,28 +391,30 @@ CiA402State CiA402Driver::getStateFromStatusWord(uint16_t status_word) {
     } else if ((status_word & 0x4F) == 0x08) {
         return CiA402State::FAULT;
     } else {
+        std::cerr << "Unknown state, status word: 0x" << std::hex << status_word << std::dec << std::endl;
         return CiA402State::UNKNOWN;
     }
 }
 
 uint16_t CiA402Driver::getControlWordForState(CiA402State state) {
-    uint16_t cw = control_word_ & 0xFF70;  // 保留非状态转换位
+    // 保留非状态转换位
+    uint16_t cw = control_word_ & 0xFF70;
     
     switch (state) {
+        case CiA402State::SWITCH_ON_DISABLED:
+            cw |= 0x0006;  // Shutdown command
+            break;
         case CiA402State::READY_TO_SWITCH_ON:
-            cw |= 0x06;  // Shutdown (Bit 1, 2)
+            cw |= 0x0006;  // Shutdown command
             break;
         case CiA402State::SWITCHED_ON:
-            cw |= 0x07;  // Switch On (Bit 0, 1, 2)
+            cw |= 0x0007;  // Switch On command
             break;
         case CiA402State::OPERATION_ENABLED:
-            cw |= 0x0F;  // Enable Operation (Bit 0, 1, 2, 3)
+            cw |= 0x000F;  // Enable Operation command
             break;
         case CiA402State::QUICK_STOP_ACTIVE:
-            cw |= 0x02;  // Quick Stop (Bit 1, ~Bit 2)
-            break;
-        case CiA402State::SWITCH_ON_DISABLED:
-            cw |= 0x00;  // Disable Voltage (Bit 1)
+            cw |= 0x0002;  // Quick Stop command
             break;
         default:
             break;
@@ -333,21 +445,88 @@ bool CiA402Driver::updateStatusWord() {
 }
 
 bool CiA402Driver::enableOperationPDO() {
-    // 使用RPDO1发送控制字和操作模式
-    // 控制字0x0F（使能操作）
-    uint16_t ctrl_word = 0x000F;  // 使能操作
-    uint8_t mode = static_cast<uint8_t>(operation_mode_);
+    std::cerr << "Enabling motor operation via PDO..." << std::endl;
     
-    std::vector<uint8_t> data = {
-        static_cast<uint8_t>(ctrl_word & 0xFF),
-        static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
-        mode, 0x00, 0x00, 0x00, 0x00
-    };
+    // 1. 获取当前状态
+    CiA402State current_state = getState();
+    std::cerr << "Current state before PDO enable: " << static_cast<int>(current_state) << std::endl;
     
-    std::cout << "Enabling operation via PDO, control word: 0x" 
-              << std::hex << ctrl_word << ", mode: " << static_cast<int>(mode) << std::dec << std::endl;
+    // 2. 如果处于故障状态，先尝试清除故障
+    if (current_state == CiA402State::FAULT) {
+        std::cerr << "Device in FAULT state, attempting to reset fault via PDO" << std::endl;
+        
+        // 发送故障复位控制字 (0x80)
+        std::vector<uint8_t> reset_data = {0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        if (!canopen_->sendPDO(1, reset_data)) {
+            std::cerr << "Failed to send fault reset PDO" << std::endl;
+            return false;
+        }
+        
+        // 等待一段时间
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // 清除故障复位位
+        std::vector<uint8_t> clear_reset_data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        if (!canopen_->sendPDO(1, clear_reset_data)) {
+            std::cerr << "Failed to clear fault reset PDO" << std::endl;
+            return false;
+        }
+        
+        // 等待一段时间
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // 重新获取状态
+        updateStatusWord();
+        current_state = getState();
+        std::cerr << "After fault reset via PDO, state: " << static_cast<int>(current_state) << std::endl;
+    }
     
-    return canopen_->sendPDO(1, data);
+    // 3. 按照CiA402状态机顺序发送控制字
+    
+    // 3.1 发送Shutdown命令 (0x06) - 转到Ready to Switch On状态
+    std::vector<uint8_t> shutdown_data = {0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    if (!canopen_->sendPDO(1, shutdown_data)) {
+        std::cerr << "Failed to send shutdown PDO" << std::endl;
+        return false;
+    }
+    
+    // 等待状态转换
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    updateStatusWord();
+    current_state = getState();
+    std::cerr << "After shutdown command, state: " << static_cast<int>(current_state) << std::endl;
+    
+    // 3.2 发送Switch On命令 (0x07) - 转到Switched On状态
+    std::vector<uint8_t> switch_on_data = {0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    if (!canopen_->sendPDO(1, switch_on_data)) {
+        std::cerr << "Failed to send switch on PDO" << std::endl;
+        return false;
+    }
+    
+    // 等待状态转换
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    updateStatusWord();
+    current_state = getState();
+    std::cerr << "After switch on command, state: " << static_cast<int>(current_state) << std::endl;
+    
+    // 3.3 发送Enable Operation命令 (0x0F) - 转到Operation Enabled状态
+    std::vector<uint8_t> enable_data = {0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    if (!canopen_->sendPDO(1, enable_data)) {
+        std::cerr << "Failed to send enable operation PDO" << std::endl;
+        return false;
+    }
+    
+    // 等待状态转换
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    updateStatusWord();
+    current_state = getState();
+    std::cerr << "After enable operation command, state: " << static_cast<int>(current_state) << std::endl;
+    
+    // 4. 检查是否成功使能
+    bool success = (current_state == CiA402State::OPERATION_ENABLED);
+    std::cerr << "Enable operation via PDO result: " << (success ? "success" : "failed") << std::endl;
+    
+    return success;
 }
 
 bool CiA402Driver::setTargetPositionPDO(int32_t position, bool absolute) {
