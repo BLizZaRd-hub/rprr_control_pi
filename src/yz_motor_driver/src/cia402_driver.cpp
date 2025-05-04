@@ -30,8 +30,22 @@ bool CiA402Driver::init() {
 }
 
 bool CiA402Driver::enableOperation() {
-    // 按照状态机顺序使能操作
-    return transitionToState(CiA402State::OPERATION_ENABLED);
+    std::cout << "Enabling motor operation..." << std::endl;
+    
+    // 1. 获取当前状态
+    CiA402State current_state = getState();
+    std::cout << "Current state: " << static_cast<int>(current_state) << std::endl;
+    
+    // 2. 按照状态机顺序使能操作
+    bool result = transitionToState(CiA402State::OPERATION_ENABLED);
+    
+    if (result) {
+        std::cout << "Motor enabled successfully" << std::endl;
+    } else {
+        std::cerr << "Failed to enable motor" << std::endl;
+    }
+    
+    return result;
 }
 
 bool CiA402Driver::disableOperation() {
@@ -77,12 +91,29 @@ OperationMode CiA402Driver::getOperationMode() {
 }
 
 bool CiA402Driver::setTargetPosition(int32_t position, bool absolute, bool immediate) {
-    // 设置目标位置
+    // 1. 确保电机处于Operation Enabled状态
+    CiA402State current_state = getState();
+    if (current_state != CiA402State::OPERATION_ENABLED) {
+        std::cout << "Motor not in Operation Enabled state. Current state: " 
+                  << static_cast<int>(current_state) << std::endl;
+        
+        // 尝试使能电机
+        if (!transitionToState(CiA402State::OPERATION_ENABLED)) {
+            std::cerr << "Failed to enable motor operation" << std::endl;
+            return false;
+        }
+    }
+    
+    // 2. 设置目标位置
     if (!canopen_->writeSDO<int32_t>(0x607A, 0, position)) {
+        std::cerr << "Failed to set target position" << std::endl;
         return false;
     }
     
-    // 设置控制字
+    // 3. 设置控制字
+    // 保持使能操作位 (0x000F)
+    control_word_ = 0x000F;
+    
     if (absolute) {
         control_word_ &= ~(1 << 6);  // 清除Bit 6 (绝对位置模式)
     } else {
@@ -98,6 +129,10 @@ bool CiA402Driver::setTargetPosition(int32_t position, bool absolute, bool immed
     // 设置Bit 4 (New Setpoint)
     control_word_ |= (1 << 4);
     
+    std::cout << "Setting control word: 0x" << std::hex << control_word_ 
+              << std::dec << " for target position: " << position << std::endl;
+    
+    // 4. 发送控制字
     return canopen_->writeSDO<uint16_t>(0x6040, 0, control_word_);
 }
 
@@ -283,30 +318,57 @@ bool CiA402Driver::updateStatusWord() {
     }
     
     status_word_ = new_status_word;
+    
+    // 打印状态字详细信息
+    std::cout << "Status Word: 0x" << std::hex << status_word_ << std::dec << std::endl;
+    std::cout << "  Ready to Switch On: " << ((status_word_ & 0x0001) ? "Yes" : "No") << std::endl;
+    std::cout << "  Switched On: " << ((status_word_ & 0x0002) ? "Yes" : "No") << std::endl;
+    std::cout << "  Operation Enabled: " << ((status_word_ & 0x0004) ? "Yes" : "No") << std::endl;
+    std::cout << "  Fault: " << ((status_word_ & 0x0008) ? "Yes" : "No") << std::endl;
+    std::cout << "  Quick Stop: " << ((status_word_ & 0x0020) ? "No" : "Yes") << std::endl;
+    std::cout << "  Switch On Disabled: " << ((status_word_ & 0x0040) ? "Yes" : "No") << std::endl;
+    std::cout << "  Target Reached: " << ((status_word_ & 0x0400) ? "Yes" : "No") << std::endl;
+    
     return true;
 }
 
 bool CiA402Driver::enableOperationPDO() {
     // 使用RPDO1发送控制字和操作模式
     // 控制字0x0F（使能操作）
-    // 操作模式取决于当前设置
+    uint16_t ctrl_word = 0x000F;  // 使能操作
     uint8_t mode = static_cast<uint8_t>(operation_mode_);
-    std::vector<uint8_t> data = {0x0F, 0x00, mode, 0x00, 0x00, 0x00, 0x00, 0x00};
+    
+    std::vector<uint8_t> data = {
+        static_cast<uint8_t>(ctrl_word & 0xFF),
+        static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
+        mode, 0x00, 0x00, 0x00, 0x00
+    };
+    
+    std::cout << "Enabling operation via PDO, control word: 0x" 
+              << std::hex << ctrl_word << ", mode: " << static_cast<int>(mode) << std::dec << std::endl;
+    
     return canopen_->sendPDO(1, data);
 }
 
 bool CiA402Driver::setTargetPositionPDO(int32_t position) {
     // 使用RPDO1发送控制字、操作模式和目标位置
-    // 控制字0x1F（使能操作+新设定点）
+    // 控制字0x1F（使能操作+新设定点+立即执行）
     // 操作模式1（位置模式）
-    uint8_t mode = 1; // 位置模式
+    uint16_t ctrl_word = 0x001F;  // 包含使能操作位和新设定点位
+    uint8_t mode = 1;  // 位置模式
+    
     std::vector<uint8_t> data = {
-        0x1F, 0x00, mode, 0x00,
+        static_cast<uint8_t>(ctrl_word & 0xFF),
+        static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
+        mode, 0x00,
         static_cast<uint8_t>(position & 0xFF),
         static_cast<uint8_t>((position >> 8) & 0xFF),
-        static_cast<uint8_t>((position >> 16) & 0xFF),
-        static_cast<uint8_t>((position >> 24) & 0xFF)
+        static_cast<uint8_t>((position >> 16) & 0xFF)
     };
+    
+    std::cout << "Sending position command via PDO: " << position 
+              << ", control word: 0x" << std::hex << ctrl_word << std::dec << std::endl;
+    
     return canopen_->sendPDO(1, data);
 }
 

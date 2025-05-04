@@ -215,12 +215,19 @@ void YZMotorNode::positionCmdCallback(const std_msgs::msg::Int32::SharedPtr msg)
 }
 
 void YZMotorNode::positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "Received position_deg_cmd: %.2f", msg->data);
+    
     if (!cia402_driver_) {
+        RCLCPP_ERROR(this->get_logger(), "CiA402 driver not initialized");
         return;
     }
     
     int32_t position = degreesToEncoder(msg->data);
-    cia402_driver_->setTargetPosition(position, true, true);
+    RCLCPP_INFO(this->get_logger(), "Converted to encoder position: %d", position);
+    
+    // 使用PDO而非SDO
+    bool result = cia402_driver_->setTargetPositionPDO(position);
+    RCLCPP_INFO(this->get_logger(), "setTargetPositionPDO result: %s", result ? "success" : "failed");
 }
 
 void YZMotorNode::velocityCmdCallback(const std_msgs::msg::Int32::SharedPtr msg) {
