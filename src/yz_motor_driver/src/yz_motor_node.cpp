@@ -255,7 +255,7 @@ void YZMotorNode::positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr
 }
 
 void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "Received position_deg_relative_cmd: %.2f", msg->data);
+    RCLCPP_DEBUG(this->get_logger(), "Received position_deg_relative_cmd: %.2f", msg->data);
     
     if (!cia402_driver_) {
         RCLCPP_ERROR(this->get_logger(), "CiA402 driver not initialized");
@@ -264,7 +264,7 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
     
     // 1. 确保电机处于位置模式
     if (cia402_driver_->getOperationMode() != OperationMode::PROFILE_POSITION) {
-        RCLCPP_INFO(this->get_logger(), "Setting operation mode to Profile Position");
+        RCLCPP_DEBUG(this->get_logger(), "Setting operation mode to Profile Position");
         if (!cia402_driver_->setOperationMode(OperationMode::PROFILE_POSITION)) {
             RCLCPP_ERROR(this->get_logger(), "Failed to set Profile Position mode");
             return;
@@ -276,7 +276,8 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
     // 2. 确保电机已使能
     CiA402State state = cia402_driver_->getState();
     if (state != CiA402State::OPERATION_ENABLED) {
-        RCLCPP_INFO(this->get_logger(), "Enabling motor operation");
+        // 将INFO改为DEBUG
+        RCLCPP_DEBUG(this->get_logger(), "Enabling motor operation");
         if (!cia402_driver_->enableOperation()) {
             RCLCPP_ERROR(this->get_logger(), "Failed to enable motor operation");
             return;
@@ -287,12 +288,14 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
     
     // 3. 将角度转换为编码器脉冲
     int32_t position = degreesToEncoder(msg->data);
-    RCLCPP_INFO(this->get_logger(), "Converting %.2f degrees to %d encoder pulses (scale: %.2f)", 
+    RCLCPP_DEBUG(this->get_logger(), "Converting %.2f degrees to %d encoder pulses (scale: %.2f)", 
                 msg->data, position, position_scale_);
     
     // 4. 发送相对位置命令
     bool result = cia402_driver_->setTargetPositionPDO(position, false);
-    RCLCPP_INFO(this->get_logger(), "setTargetPositionPDO (relative) result: %s", result ? "success" : "failed");
+    // 保留这个INFO级别的日志，因为这是关键操作结果
+    RCLCPP_INFO(this->get_logger(), "Relative position command (%.2f deg) sent: %s", 
+                msg->data, result ? "success" : "failed");
     
     // 5. 等待命令开始执行
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
