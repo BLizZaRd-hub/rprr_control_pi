@@ -255,8 +255,7 @@ uint32_t CiA402Driver::getProfileAcceleration() {
 }
 
 bool CiA402Driver::transitionToState(CiA402State target_state, std::chrono::milliseconds timeout) {
-    // 删除未使用的变量
-    // auto start_time = std::chrono::steady_clock::now();
+    auto start_time = std::chrono::steady_clock::now();
     
     // 增加超时时间
     if (timeout == std::chrono::milliseconds(1000)) {
