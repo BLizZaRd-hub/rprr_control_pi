@@ -23,7 +23,6 @@ enum class CiA402State {
 
 // 操作模式
 enum class OperationMode {
-    NO_MODE = 0,           // 添加NO_MODE
     PROFILE_POSITION = 1,
     PROFILE_VELOCITY = 3,
     HOMING = 6,
@@ -55,9 +54,6 @@ public:
     uint16_t getControlWordForState(CiA402State state);
     bool updateStatusWord();
     uint16_t getStatusWord();
-    uint16_t getControlWord();  // 添加获取控制字方法
-    bool isTargetReached();     // 添加目标到达检查
-    bool isFault();             // 添加故障检查
 
     // PDO通信方法
     bool setTargetPositionPDO(int32_t position, bool absolute = true);
@@ -78,11 +74,8 @@ public:
 
     // 其他参数设置
     bool setProfileVelocity(uint32_t velocity);
-    uint32_t getProfileVelocity();  // 添加获取速度方法
     bool setProfileAcceleration(uint32_t acceleration);
-    uint32_t getProfileAcceleration();  // 添加获取加速度方法
     bool setProfileDeceleration(uint32_t deceleration);
-    bool setGearRatio(uint16_t numerator, uint16_t denominator);  // 添加设置齿轮比方法
     bool saveParameters();
 
     // 回零功能
