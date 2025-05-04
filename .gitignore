@@ -1,0 +1,37 @@
+# Build artifacts
+build/
+install/
+log/
+
+# Generated files
+*.egg-info/
+*.pyc
+*.pyo
+*.so
+*.swp
+*~
+*.bak
+*.orig
+*.rej
+
+# IDE files
+.vscode/
+.idea/
+*.DS_Store
+
+# Cache files
+__pycache__/
+.pytest_cache/
+.cache/
+
+# ccache
+.ccache/
+
+# Other common ignores
+*.tar.gz
+*.zip
+*.deb
+
+# Specific to your project if needed
+# For example:
+# config/my_sensitive_config.yaml

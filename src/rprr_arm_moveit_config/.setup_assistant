@@ -1,0 +1,10 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: rprr_description
+    relative_path: urdf/rprr_arm.urdf
+  srdf:
+    relative_path: config/rprr_arm.srdf
+  package_settings:
+    author_name: xzh
+    author_email: 202230603127@zstu.edu.cn
+    generated_timestamp: 1745828010

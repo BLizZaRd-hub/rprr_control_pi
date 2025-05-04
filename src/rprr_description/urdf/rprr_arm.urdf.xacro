@@ -1,0 +1,219 @@
+<?xml version="1.0"?>
+<robot name="rprr_arm">
+
+  <!-- ***************** -->
+  <!--      Links        -->
+  <!-- ***************** -->
+
+  <!-- Base Link (固定基座) -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/> <!-- 将圆柱中心放在link原点上方一半高度处 -->
+      <geometry>
+        <cylinder radius="0.15" length="0.05"/>
+      </geometry>
+      <material name="grey">
+        <color rgba="0.5 0.5 0.5 1.0"/>
+      </material>
+    </visual>
+    <collision>
+        <origin xyz="0 0 0.025" rpy="0 0 0"/>
+        <geometry>
+            <cylinder radius="0.15" length="0.05"/>
+        </geometry>
+    </collision>
+    <inertial>
+      <!-- 惯性相对于 link origin (基座底部中心) -->
+      <origin xyz="0 0 0.025" rpy="0 0 0"/> <!-- 质心位置 -->
+      <mass value="10.0"/>
+      <!-- 惯性张量 Ixx, Iyy, Izz, Ixy, Ixz, Iyz (估算值)-->
+      <inertia ixx="0.06156" iyy="0.06156" izz="0.1125" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+
+  <!-- Base Riser (垂直移动平台) -->
+  <link name="base_riser">
+    <visual>
+       <origin xyz="0 0 -0.015" rpy="0 0 0"/> <!-- 将圆柱中心放在 link origin 下方 -->
+       <geometry>
+         <cylinder radius="0.14" length="0.03"/>
+       </geometry>
+       <material name="silver">
+         <color rgba="0.75 0.75 0.75 1.0"/>
+       </material>
+    </visual>
+     <collision>
+       <origin xyz="0 0 -0.015" rpy="0 0 0"/>
+       <geometry>
+         <cylinder radius="0.14" length="0.03"/>
+       </geometry>
+    </collision>
+    <inertial>
+      <!-- 惯性相对于 link origin (J2/J1 轴线与平台顶面交点) -->
+      <origin xyz="0 0 -0.015" rpy="0 0 0"/> <!-- 质心位置 -->
+      <mass value="5.0"/>
+      <inertia ixx="0.02556" iyy="0.02556" izz="0.049" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+
+  <!-- Link 1 (J1 -> J3) -->
+  <link name="link1">
+    <visual>
+      <origin xyz="0.2 0 0" rpy="0 0 0"/> <!-- 将长方体中心放在连杆中间 -->
+      <geometry>
+        <box size="0.4 0.05 0.05"/> <!-- L1=0.4m -->
+      </geometry>
+      <material name="blue">
+        <color rgba="0 0 0.8 1.0"/>
+      </material>
+    </visual>
+     <collision>
+      <origin xyz="0.2 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.4 0.05 0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <!-- 惯性相对于 link origin (J1 轴线) -->
+      <origin xyz="0.2 0 0" rpy="0 0 0"/> <!-- 质心位置 -->
+      <mass value="3.0"/>
+      <!-- 使用平行轴定理 I_origin = I_com + m*skew(r_com)^T*skew(r_com) -->
+      <!-- Ixx_o = Ixx_c + m*(ry^2+rz^2) = 0.001 + 3*(0^2+0^2) = 0.001 -->
+      <!-- Iyy_o = Iyy_c + m*(rx^2+rz^2) = 0.04 + 3*(0.2^2+0^2) = 0.04 + 0.12 = 0.16 -->
+      <!-- Izz_o = Izz_c + m*(rx^2+ry^2) = 0.04 + 3*(0.2^2+0^2) = 0.16 -->
+      <inertia ixx="0.001" iyy="0.16" izz="0.16" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+
+  <!-- Link 2 (J3 -> J4) -->
+  <link name="link2">
+    <visual>
+      <origin xyz="0.1535 0 0" rpy="0 0 0"/> <!-- 长方体中心 -->
+      <geometry>
+        <box size="0.307 0.05 0.05"/> <!-- L2=0.307m -->
+      </geometry>
+      <material name="green">
+        <color rgba="0 0.8 0 1.0"/>
+      </material>
+    </visual>
+     <collision>
+      <origin xyz="0.1535 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.307 0.05 0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <!-- 惯性相对于 link origin (J3 轴线) -->
+      <origin xyz="0.1535 0 0" rpy="0 0 0"/> <!-- 质心位置 -->
+      <mass value="2.0"/>
+      <!-- Iyy_o = 0.016 + 2*(0.1535^2) = 0.016 + 0.0471 = 0.0631 -->
+      <!-- Izz_o = 0.016 + 2*(0.1535^2) = 0.0631 -->
+      <inertia ixx="0.001" iyy="0.0631" izz="0.0631" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+
+  <!-- Link 3 (垂直圆盘或安装法兰 @ J4) -->
+  <link name="link3">
+    <visual>
+      <!-- 假设圆盘中心在 J4 轴线上，并且圆盘面平行于 YZ 平面 (绕 X 轴转 90 度) -->
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/> <!-- 绕 X 轴转 pi/2 -->
+      <geometry>
+        <cylinder radius="0.04" length="0.02"/> <!-- 半径 40mm, 厚度 20mm -->
+      </geometry>
+      <material name="yellow">
+        <color rgba="0.8 0.8 0 1.0"/>
+      </material>
+    </visual>
+     <collision>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry>
+        <cylinder radius="0.04" length="0.02"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <!-- 惯性相对于 link origin (J4 轴线) -->
+      <origin xyz="0 0 0" rpy="0 0 0"/> <!-- 假设质心就在 J4 轴线上 -->
+      <mass value="0.5"/>
+      <!-- 估算垂直圆盘绕 Link Origin (J4轴) 的惯性张量 -->
+      <!-- 这里的估算比较粗略，依赖于圆盘方向和具体形状 -->
+      <inertia ixx="0.0002" iyy="0.0002" izz="0.0004" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+
+  <!-- TCP Link (逻辑点，带可视化) -->
+  <link name="tcp_link">
+     <visual>
+       <origin xyz="0 0 0" rpy="0 0 0"/> <!-- 小球中心在 TCP 点 -->
+       <geometry>
+         <sphere radius="0.01"/> <!-- 10mm 半径 -->
+       </geometry>
+       <material name="red">
+         <color rgba="1.0 0 0 1.0"/>
+       </material>
+     </visual>
+     <collision> <!-- 通常 TCP 不设置碰撞 -->
+       <origin xyz="0 0 0" rpy="0 0 0"/>
+       <geometry>
+         <sphere radius="0.01"/>
+       </geometry>
+     </collision>
+     <inertial>
+       <!-- TCP 通常设为无质量或极小质量 -->
+       <origin xyz="0 0 0" rpy="0 0 0"/>
+       <mass value="0.01"/> <!-- 设一个很小的值避免求解器问题 -->
+       <inertia ixx="1e-6" iyy="1e-6" izz="1e-6" ixy="0" ixz="0" iyz="0"/>
+     </inertial>
+  </link>
+
+  <!-- ***************** -->
+  <!--      Joints       -->
+  <!-- ***************** -->
+
+  <!-- Joint 2: Prismatic (Base -> BaseRiser) -->
+  <joint name="jnt2" type="prismatic">
+    <parent link="base_link"/>
+    <child link="base_riser"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/> <!-- 关节位于 base_link 原点 -->
+    <axis xyz="0 0 1"/> <!-- 沿 Z 轴移动 -->
+    <limit lower="0.0" upper="0.33" effort="250" velocity="0.167"/> <!-- effort(力), velocity(速度) -->
+    <dynamics damping="1.0" friction="0.5"/> <!-- 可选的动力学参数: 阻尼和摩擦 -->
+  </joint>
+
+  <!-- Joint 1: Revolute (BaseRiser -> Link1) -->
+  <joint name="jnt1" type="revolute">
+    <parent link="base_riser"/>
+    <child link="link1"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/> <!-- 关节位于 base_riser 原点 -->
+    <axis xyz="0 0 1"/> <!-- 绕 Z 轴旋转 -->
+    <limit lower="-3.14159" upper="3.14159" effort="15" velocity="10.47"/> <!-- rad, N·m, rad/s -->
+     <dynamics damping="0.1" friction="0.1"/>
+  </joint>
+
+  <!-- Joint 3: Revolute (Link1 -> Link2) -->
+  <joint name="jnt3" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin xyz="0.4 0 0" rpy="0 0 0"/> <!-- 关节位于 link1 的 X=L1 处 -->
+    <axis xyz="0 0 1"/> <!-- 绕 Z 轴旋转 -->
+    <limit lower="-2.61799" upper="2.61799" effort="40" velocity="3.49"/> <!-- -150 to +150 deg in rad -->
+     <dynamics damping="0.1" friction="0.1"/>
+  </joint>
+
+  <!-- Joint 4: Revolute (Link2 -> Link3) -->
+  <joint name="jnt4" type="revolute">
+    <parent link="link2"/>
+    <child link="link3"/>
+    <origin xyz="0.307 0 0" rpy="0 0 0"/> <!-- 关节位于 link2 的 X=L2 处 -->
+    <axis xyz="0 0 1"/> <!-- 绕 Z 轴旋转 -->
+    <limit lower="-3.14159" upper="3.14159" effort="12" velocity="11.64"/>
+     <dynamics damping="0.1" friction="0.1"/>
+  </joint>
+
+  <!-- Fixed Joint: TCP (Link3 -> TCP Link) -->
+  <joint name="jnt_tcp" type="fixed">
+    <parent link="link3"/>
+    <child link="tcp_link"/>
+    <origin xyz="0 0 -0.05" rpy="0 0 0"/> <!-- TCP 相对于 Link3 原点 (J4轴) 的偏移 -->
+  </joint>
+
+</robot>

@@ -1,0 +1,116 @@
+import os
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+from moveit_configs_utils import MoveItConfigsBuilder
+
+def generate_launch_description():
+    # --- Declare Launch arguments ---
+    declared_arguments = []
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "description_file",
+            default_value="rprr_arm.urdf.xacro",
+            description="URDF/XACRO description file relative to description package.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "moveit_config_package",
+            default_value="rprr_arm_moveit_config",
+            description="MoveIt config package.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "rviz_config_file",
+            default_value="moveit.rviz",
+            description="RViz configuration file",
+        )
+    )
+
+    # --- Get Launch configuration values ---
+    description_file = LaunchConfiguration("description_file")
+    moveit_config_package = LaunchConfiguration("moveit_config_package")
+    rviz_config_file= LaunchConfiguration("rviz_config_file")
+
+    # --- Use MoveItConfigsBuilder ---
+    moveit_config = (
+        MoveItConfigsBuilder(robot_name="rprr_arm", package_name=moveit_config_package)
+        .robot_description_semantic(file_path="config/rprr_arm.srdf")
+        .trajectory_execution(file_path="config/moveit_controllers.yaml")
+        .planning_pipelines(pipelines=["ompl"], default_planning_pipeline="ompl")
+        .robot_description_kinematics(file_path="config/kinematics.yaml")
+        .launch_rviz(rviz_config_file=PathJoinSubstitution(
+            [FindPackageShare(moveit_config_package), "config", rviz_config_file]
+        ))
+        .to_moveit_configs()
+    )
+
+    # --- Define core nodes ---
+    # Robot State Publisher
+    robot_state_publisher_node = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        output="screen",
+        parameters=[moveit_config.robot_description],
+    )
+
+    # Move Group node
+    run_move_group_node = Node(
+        package="moveit_ros_move_group",
+        executable="move_group",
+        output="screen",
+        parameters=[moveit_config.to_dict()],
+    )
+
+    # Static TF Publisher
+    static_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="static_transform_publisher",
+        output="log",
+        arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "base_link"],
+    )
+    
+    # Joint State Publisher GUI
+    joint_state_publisher_node = Node(
+        package="joint_state_publisher_gui",
+        executable="joint_state_publisher_gui",
+        name="joint_state_publisher_gui",
+    )
+    
+    # MoveIt Fake Controller Manager
+    fake_controller_manager_node = Node(
+        package="moveit_fake_controller_manager",
+        executable="moveit_fake_controller_manager",
+        name="moveit_fake_controller_manager",
+        parameters=[
+             PathJoinSubstitution([FindPackageShare(moveit_config_package),"config","moveit_controllers.yaml"]),
+        ],
+        output="screen",
+    )
+
+    # --- Build Launch Description ---
+    nodes_to_start = [
+        robot_state_publisher_node,
+        run_move_group_node,
+        static_tf,
+        joint_state_publisher_node,
+        fake_controller_manager_node,
+    ]
+    
+    generated_nodes = []
+    # Add generated nodes if they exist
+    if hasattr(moveit_config, 'trajectory_execution') and hasattr(moveit_config.trajectory_execution, 'get'):
+        generated_nodes.extend(moveit_config.trajectory_execution.get("nodes_to_start", []))
+    
+    if hasattr(moveit_config, 'planning_pipelines') and hasattr(moveit_config.planning_pipelines, 'get'):
+        generated_nodes.extend(moveit_config.planning_pipelines.get("nodes_to_start", []))
+    
+    if hasattr(moveit_config, 'planning_scene_monitor') and hasattr(moveit_config.planning_scene_monitor, 'get'):
+        generated_nodes.extend(moveit_config.planning_scene_monitor.get("nodes_to_start", []))
+
+    return LaunchDescription(declared_arguments + nodes_to_start + generated_nodes)
