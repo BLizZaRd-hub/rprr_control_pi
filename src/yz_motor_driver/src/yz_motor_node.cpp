@@ -427,7 +427,7 @@ void YZMotorNode::updateStatus() {
     int32_t position = cia402_driver_->getPosition();
     
     // 只在状态变化时打印日志
-    static CiA402State last_state = CiA402State::NOT_READY_TO_SWITCH_ON;
+    static CiA402State last_state = CiA402State::NOT_READY;
     static int32_t last_position = 0;
     
     if (state != last_state) {
@@ -443,6 +443,7 @@ void YZMotorNode::updateStatus() {
     }
     
     // 发布位置
+    int32_t position = cia402_driver_->getCurrentPosition();
     auto position_msg = std::make_unique<std_msgs::msg::Int32>();
     position_msg->data = position;
     position_pub_->publish(std::move(position_msg));
@@ -453,7 +454,7 @@ void YZMotorNode::updateStatus() {
     position_deg_pub_->publish(std::move(position_deg_msg));
     
     // 发布速度
-    int32_t velocity = cia402_driver_->getVelocity();
+    int32_t velocity = cia402_driver_->getCurrentVelocity();
     auto velocity_msg = std::make_unique<std_msgs::msg::Int32>();
     velocity_msg->data = velocity;
     velocity_pub_->publish(std::move(velocity_msg));

@@ -58,8 +58,6 @@ public:
     uint16_t getControlWord();  // 添加获取控制字方法
     bool isTargetReached();     // 添加目标到达检查
     bool isFault();             // 添加故障检查
-    int32_t getPosition();
-    int32_t getVelocity();  // 添加获取速度的函数声明
 
     // PDO通信方法
     bool setTargetPositionPDO(int32_t position, bool absolute = true);
