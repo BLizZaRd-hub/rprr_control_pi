@@ -15,7 +15,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
-# 移除 find_package(example_interfaces REQUIRED)
+find_package(example_interfaces REQUIRED)
 
 # 包含目录
 include_directories(include)
