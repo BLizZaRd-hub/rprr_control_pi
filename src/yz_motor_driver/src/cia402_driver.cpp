@@ -30,88 +30,29 @@ bool CiA402Driver::init() {
 }
 
 bool CiA402Driver::enableOperation() {
-    // 1. 首先发送故障复位命令
-    std::cerr << "Sending fault reset command via SDO" << std::endl;
-    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, 0x0080)) {
-        std::cerr << "Failed to send fault reset via SDO" << std::endl;
-        return false;
-    }
+    std::cerr << "Enabling motor operation..." << std::endl;
     
-    // 等待一段时间让驱动器处理故障复位
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // 清除故障复位位
-    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, 0x0000)) {
-        std::cerr << "Failed to clear fault reset bit via SDO" << std::endl;
-        return false;
-    }
-    
-    // 再等待一段时间
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // 2. 设置操作模式为位置模式
-    if (!canopen_->writeSDO<int8_t>(0x6060, 0, 1)) {
-        std::cerr << "Failed to set operation mode to position mode" << std::endl;
-        return false;
-    }
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    
-    // 3. 检查当前状态
-    updateStatusWord();
+    // 1. 获取当前状态
     CiA402State current_state = getState();
-    std::cerr << "Current state after fault reset: " << static_cast<int>(current_state) 
-              << ", status word: 0x" << std::hex << status_word_ << std::dec << std::endl;
+    std::cerr << "Current state before enable: " << static_cast<int>(current_state) << std::endl;
     
-    // 4. 按照CiA402状态机顺序发送控制字
-    
-    // 4.1 发送Shutdown命令 (0x0006) - 转到Ready to Switch On状态
-    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, 0x0006)) {
-        std::cerr << "Failed to send shutdown command via SDO" << std::endl;
-        return false;
+    // 2. 如果处于故障状态，先尝试清除故障
+    if (current_state == CiA402State::FAULT) {
+        std::cerr << "Device in FAULT state, attempting to reset fault" << std::endl;
+        if (!resetFault()) {
+            std::cerr << "Failed to reset fault" << std::endl;
+            return false;
+        }
+        // 重新获取状态
+        current_state = getState();
+        std::cerr << "After fault reset, state: " << static_cast<int>(current_state) << std::endl;
     }
     
-    // 等待状态转换
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    updateStatusWord();
-    current_state = getState();
-    std::cerr << "After shutdown command, state: " << static_cast<int>(current_state) 
-              << ", status word: 0x" << std::hex << status_word_ << std::dec << std::endl;
+    // 3. 按照状态机顺序使能操作
+    bool result = transitionToState(CiA402State::OPERATION_ENABLED);
     
-    // 4.2 发送Switch On命令 (0x0007) - 转到Switched On状态
-    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, 0x0007)) {
-        std::cerr << "Failed to send switch on command via SDO" << std::endl;
-        return false;
-    }
-    
-    // 等待状态转换
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    updateStatusWord();
-    current_state = getState();
-    std::cerr << "After switch on command, state: " << static_cast<int>(current_state) 
-              << ", status word: 0x" << std::hex << status_word_ << std::dec << std::endl;
-    
-    // 4.3 发送Enable Operation命令 (0x000F) - 转到Operation Enabled状态
-    if (!canopen_->writeSDO<uint16_t>(0x6040, 0, 0x000F)) {
-        std::cerr << "Failed to send enable operation command via SDO" << std::endl;
-        return false;
-    }
-    
-    // 等待状态转换
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    updateStatusWord();
-    current_state = getState();
-    std::cerr << "After enable operation command, state: " << static_cast<int>(current_state) 
-              << ", status word: 0x" << std::hex << status_word_ << std::dec << std::endl;
-    
-    // 5. 检查是否成功使能
-    bool success = (current_state == CiA402State::OPERATION_ENABLED);
-    std::cerr << "Enable operation via SDO result: " << (success ? "success" : "failed") << std::endl;
-    
-    // 保存控制字
-    control_word_ = 0x000F;
-    
-    return success;
+    std::cerr << "Enable operation result: " << (result ? "success" : "failed") << std::endl;
+    return result;
 }
 
 bool CiA402Driver::disableOperation() {
