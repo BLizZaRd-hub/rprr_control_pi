@@ -43,16 +43,6 @@ private:
     int current_profile_velocity_;
     int current_profile_acceleration_;
     
-    // 服务
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr enable_srv_;
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr disable_srv_;
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr home_srv_;
-    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr position_mode_srv_;
-    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr velocity_mode_srv_;
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_params_srv_;
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr set_velocity_srv_;
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr set_acceleration_srv_;
-    
     // 定时器
     rclcpp::TimerBase::SharedPtr status_timer_;
     
@@ -87,7 +77,7 @@ private:
     void positionDegCmdCallback(
         const std_msgs::msg::Float32::SharedPtr msg);
     
-    void positionDegRelativeCmdCallback(
+    void positionRelDegCmdCallback(
         const std_msgs::msg::Float32::SharedPtr msg);
     
     void velocityCmdCallback(
@@ -104,8 +94,10 @@ private:
         const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
         std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     
-    // 状态更新函数
+    // 添加状态更新函数声明
     void updateStatus();
+    
+    void statusTimerCallback();
     
     // 辅助函数
     int32_t degreesToEncoder(double degrees);
@@ -123,7 +115,7 @@ private:
     // 订阅器
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr position_cmd_sub_;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr position_deg_cmd_sub_;
-    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr position_deg_relative_cmd_sub_;
+    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr position_rel_deg_cmd_sub_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr velocity_cmd_sub_;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr velocity_rpm_cmd_sub_;
 };
