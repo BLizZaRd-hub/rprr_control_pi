@@ -501,30 +501,28 @@ bool CiA402Driver::updateStatusWord() {
 }
 
 bool CiA402Driver::enableOperationPDO() {
-    // 1. 检查当前状态
+    // 1. 首先无条件发送故障复位命令
+    std::cerr << "Sending fault reset command via PDO" << std::endl;
+    std::vector<uint8_t> fault_reset_data = {0x80, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    if (!canopen_->sendPDO(1, fault_reset_data)) {
+        std::cerr << "Failed to send fault reset PDO" << std::endl;
+        return false;
+    }
+    
+    // 等待一段时间让驱动器处理故障复位
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 清除故障复位位
+    std::vector<uint8_t> clear_reset_data = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    canopen_->sendPDO(1, clear_reset_data);
+    
+    // 再等待一段时间
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 2. 检查当前状态
     updateStatusWord();
     CiA402State current_state = getState();
-    std::cerr << "Current state before enable: " << static_cast<int>(current_state) << std::endl;
-    
-    // 2. 如果处于故障状态，先尝试清除故障
-    if (current_state == CiA402State::FAULT) {
-        std::cerr << "Motor in FAULT state, attempting to reset fault via PDO" << std::endl;
-        
-        // 发送故障复位命令 (0x80)
-        std::vector<uint8_t> fault_reset_data = {0x80, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
-        if (!canopen_->sendPDO(1, fault_reset_data)) {
-            std::cerr << "Failed to send fault reset PDO" << std::endl;
-            return false;
-        }
-        
-        // 等待一段时间
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        
-        // 重新获取状态
-        updateStatusWord();
-        current_state = getState();
-        std::cerr << "After fault reset via PDO, state: " << static_cast<int>(current_state) << std::endl;
-    }
+    std::cerr << "Current state after fault reset: " << static_cast<int>(current_state) << std::endl;
     
     // 3. 按照CiA402状态机顺序发送控制字
     
