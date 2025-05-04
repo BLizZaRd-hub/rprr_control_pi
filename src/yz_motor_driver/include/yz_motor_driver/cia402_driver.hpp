@@ -52,10 +52,12 @@ public:
     // 操作模式设置
     bool setOperationMode(OperationMode mode);
     OperationMode getOperationMode();
+    int8_t getOperationMode();
 
     // 位置控制
     bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = true);
     int32_t getCurrentPosition();
+    int32_t getTargetPosition();
 
     // 速度控制
     bool setTargetVelocity(int32_t velocity);
@@ -75,6 +77,9 @@ public:
     bool setProfileVelocity(uint32_t velocity);
     bool setProfileAcceleration(uint32_t acceleration);
     bool setGearRatio(uint16_t numerator, uint16_t denominator);
+    uint16_t getControlWord();
+    uint32_t getProfileVelocity();
+    uint32_t getProfileAcceleration();
 
     // 参数保存
     bool saveParameters();

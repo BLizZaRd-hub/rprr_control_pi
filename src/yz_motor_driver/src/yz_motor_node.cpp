@@ -262,12 +262,40 @@ void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::S
         return;
     }
     
-    int32_t position = degreesToEncoder(msg->data);
-    RCLCPP_INFO(this->get_logger(), "Converted to relative encoder position: %d", position);
+    // 1. 确保电机处于位置模式
+    if (cia402_driver_->getOperationMode() != static_cast<int8_t>(OperationMode::PROFILE_POSITION)) {
+        RCLCPP_INFO(this->get_logger(), "Setting operation mode to Profile Position");
+        if (!cia402_driver_->setOperationMode(OperationMode::PROFILE_POSITION)) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to set Profile Position mode");
+            return;
+        }
+        // 给驱动器一些时间来切换模式
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
     
-    // 使用相对位置模式
+    // 2. 确保电机已使能
+    CiA402State state = cia402_driver_->getState();
+    if (state != CiA402State::OPERATION_ENABLED) {
+        RCLCPP_INFO(this->get_logger(), "Enabling motor operation");
+        if (!cia402_driver_->enableOperation()) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to enable motor operation");
+            return;
+        }
+        // 给驱动器一些时间来使能
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    
+    // 3. 将角度转换为编码器脉冲
+    int32_t position = degreesToEncoder(msg->data);
+    RCLCPP_INFO(this->get_logger(), "Converting %.2f degrees to %d encoder pulses (scale: %.2f)", 
+                msg->data, position, position_scale_);
+    
+    // 4. 发送相对位置命令
     bool result = cia402_driver_->setTargetPositionPDO(position, false);
     RCLCPP_INFO(this->get_logger(), "setTargetPositionPDO (relative) result: %s", result ? "success" : "failed");
+    
+    // 5. 等待命令开始执行
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
 
 void YZMotorNode::velocityCmdCallback(const std_msgs::msg::Int32::SharedPtr msg) {
