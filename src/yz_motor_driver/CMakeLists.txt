@@ -36,7 +36,7 @@ add_library(${PROJECT_NAME}_node SHARED
   src/yz_motor_driver_node.cpp
 )
 # 链接节点库到我们自己创建的驱动库和 ROS 2 库
-ament_target_dependencies(${PROJECT_NAME}_node
+ament_target_dependencies(${PROJECT_NAME}_node PRIVATE
   rclcpp
   rclcpp_components
   std_msgs
