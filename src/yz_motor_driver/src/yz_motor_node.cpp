@@ -97,6 +97,14 @@ YZMotorNode::YZMotorNode()
         std::chrono::milliseconds(100),
         std::bind(&YZMotorNode::statusTimerCallback, this));
     
+    set_velocity_srv_ = this->create_service<example_interfaces::srv::SetInt64>(
+        "set_profile_velocity",
+        std::bind(&YZMotorNode::setVelocityCallback, this, std::placeholders::_1, std::placeholders::_2));
+    
+    set_acceleration_srv_ = this->create_service<example_interfaces::srv::SetInt64>(
+        "set_profile_acceleration",
+        std::bind(&YZMotorNode::setAccelerationCallback, this, std::placeholders::_1, std::placeholders::_2));
+    
     RCLCPP_INFO(this->get_logger(), "YZ Motor node initialized");
 }
 
@@ -312,6 +320,40 @@ int32_t YZMotorNode::rpmToVelocity(double rpm) {
 
 double YZMotorNode::velocityToRpm(int32_t velocity) {
     return static_cast<double>(velocity) / velocity_scale_;
+}
+
+void YZMotorNode::setVelocityCallback(
+    const std::shared_ptr<example_interfaces::srv::SetInt64::Request> request,
+    std::shared_ptr<example_interfaces::srv::SetInt64::Response> response) {
+    
+    if (!cia402_driver_) {
+        response->success = false;
+        return;
+    }
+    
+    uint32_t velocity = static_cast<uint32_t>(request->data);
+    bool result = cia402_driver_->setProfileVelocity(velocity);
+    
+    response->success = result;
+    RCLCPP_INFO(this->get_logger(), "Set profile velocity to %d: %s", 
+                velocity, result ? "success" : "failed");
+}
+
+void YZMotorNode::setAccelerationCallback(
+    const std::shared_ptr<example_interfaces::srv::SetInt64::Request> request,
+    std::shared_ptr<example_interfaces::srv::SetInt64::Response> response) {
+    
+    if (!cia402_driver_) {
+        response->success = false;
+        return;
+    }
+    
+    uint32_t acceleration = static_cast<uint32_t>(request->data);
+    bool result = cia402_driver_->setProfileAcceleration(acceleration);
+    
+    response->success = result;
+    RCLCPP_INFO(this->get_logger(), "Set profile acceleration to %d: %s", 
+                acceleration, result ? "success" : "failed");
 }
 
 } // namespace yz_motor_driver
