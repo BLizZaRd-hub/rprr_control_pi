@@ -230,14 +230,6 @@ bool CiA402Driver::isFault() {
     return (status_word_ & (1 << 3)) != 0;
 }
 
-bool CiA402Driver::setProfileVelocity(uint32_t velocity) {
-    return canopen_->writeSDO<uint32_t>(0x6081, 0, velocity);
-}
-
-bool CiA402Driver::setProfileAcceleration(uint32_t acceleration) {
-    return canopen_->writeSDO<uint32_t>(0x6083, 0, acceleration);
-}
-
 bool CiA402Driver::setGearRatio(uint16_t numerator, uint16_t denominator) {
     if (!canopen_->writeSDO<uint16_t>(0x260A, 0x10, numerator)) {
         return false;
@@ -246,8 +238,20 @@ bool CiA402Driver::setGearRatio(uint16_t numerator, uint16_t denominator) {
     return canopen_->writeSDO<uint16_t>(0x260B, 0x10, denominator);
 }
 
-bool CiA402Driver::saveParameters() {
-    return canopen_->writeSDO<uint8_t>(0x2614, 0x10, 1);
+uint16_t CiA402Driver::getControlWord() {
+    return control_word_;
+}
+
+uint32_t CiA402Driver::getProfileVelocity() {
+    uint32_t velocity = 0;
+    canopen_->readSDO<uint32_t>(0x6081, 0, velocity);
+    return velocity;
+}
+
+uint32_t CiA402Driver::getProfileAcceleration() {
+    uint32_t acceleration = 0;
+    canopen_->readSDO<uint32_t>(0x6083, 0, acceleration);
+    return acceleration;
 }
 
 bool CiA402Driver::transitionToState(CiA402State target_state, std::chrono::milliseconds timeout) {
@@ -602,10 +606,6 @@ bool CiA402Driver::setTargetVelocityPDO(int32_t velocity) {
         static_cast<uint8_t>((velocity >> 24) & 0xFF)
     };
     return canopen_->sendPDO(3, data);
-}
-
-uint16_t CiA402Driver::getControlWord() {
-    return control_word_;
 }
 
 int32_t CiA402Driver::getTargetPosition() {
