@@ -36,13 +36,13 @@ YZMotorNode::YZMotorNode(const rclcpp::NodeOptions& options)
     RCLCPP_INFO(this->get_logger(), "Motor driver initialized. Please call the enable service to enable the motor.");
     
     // 创建服务
-    enable_srv_ = this->create_service<std_srvs::srv::Trigger>(
+    enable_service_ = this->create_service<std_srvs::srv::Trigger>(
         "enable", std::bind(&YZMotorNode::enableCallback, this, std::placeholders::_1, std::placeholders::_2));
-
+    
     disable_srv_ = this->create_service<std_srvs::srv::Trigger>(
         "disable",
         std::bind(&YZMotorNode::disableCallback, this, std::placeholders::_1, std::placeholders::_2));
-
+    
     home_srv_ = this->create_service<std_srvs::srv::Trigger>(
         "home",
         std::bind(&YZMotorNode::homeCallback, this, std::placeholders::_1, std::placeholders::_2));
