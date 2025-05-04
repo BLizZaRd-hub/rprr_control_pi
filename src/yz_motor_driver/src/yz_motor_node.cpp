@@ -11,12 +11,16 @@ YZMotorNode::YZMotorNode()
     this->declare_parameter("node_id", 1);
     this->declare_parameter("position_scale", 32768.0);  // 1圈 = 32768个编码器脉冲
     this->declare_parameter("velocity_scale", 10.0);     // 速度值 = rpm / 10
+    this->declare_parameter("profile_velocity", 1000);  // 默认速度
+    this->declare_parameter("profile_acceleration", 1000);  // 默认加速度
     
     // 获取参数
     can_interface_ = this->get_parameter("can_interface").as_string();
     node_id_ = this->get_parameter("node_id").as_int();
     position_scale_ = this->get_parameter("position_scale").as_double();
     velocity_scale_ = this->get_parameter("velocity_scale").as_double();
+    uint32_t profile_velocity = this->get_parameter("profile_velocity").as_int();
+    uint32_t profile_acceleration = this->get_parameter("profile_acceleration").as_int();
     
     // 创建驱动实例
     canopen_driver_ = std::make_shared<CANopenDriver>(can_interface_, static_cast<uint8_t>(node_id_));
@@ -29,6 +33,14 @@ YZMotorNode::YZMotorNode()
     if (!cia402_driver_->init()) {
         RCLCPP_ERROR(this->get_logger(), "Failed to initialize CiA402 driver");
         return;
+    }
+    
+    // 设置电机速度和加速度参数
+    if (cia402_driver_) {
+        cia402_driver_->setProfileVelocity(profile_velocity);
+        cia402_driver_->setProfileAcceleration(profile_acceleration);
+        RCLCPP_INFO(this->get_logger(), "Set profile velocity: %d, acceleration: %d", 
+                    profile_velocity, profile_acceleration);
     }
     
     // 创建服务
@@ -282,7 +294,12 @@ void YZMotorNode::statusTimerCallback() {
 }
 
 int32_t YZMotorNode::degreesToEncoder(double degrees) {
-    return static_cast<int32_t>(degrees * position_scale_ / 360.0);
+    // 打印转换详情以便调试
+    int32_t encoder_value = static_cast<int32_t>(degrees * position_scale_ / 360.0);
+    RCLCPP_DEBUG(this->get_logger(), 
+                "Converting %.2f degrees to encoder value %d (scale: %.2f)", 
+                degrees, encoder_value, position_scale_);
+    return encoder_value;
 }
 
 double YZMotorNode::encoderToDegrees(int32_t encoder) {

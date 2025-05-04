@@ -350,11 +350,15 @@ bool CiA402Driver::enableOperationPDO() {
     return canopen_->sendPDO(1, data);
 }
 
-bool CiA402Driver::setTargetPositionPDO(int32_t position) {
+bool CiA402Driver::setTargetPositionPDO(int32_t position, bool absolute) {
     // 使用RPDO1发送控制字、操作模式和目标位置
-    // 控制字0x1F（使能操作+新设定点+立即执行）
-    // 操作模式1（位置模式）
     uint16_t ctrl_word = 0x001F;  // 包含使能操作位和新设定点位
+    
+    // 设置相对/绝对位置模式位
+    if (!absolute) {
+        ctrl_word |= (1 << 6);  // 设置Bit 6 (相对位置模式)
+    }
+    
     uint8_t mode = 1;  // 位置模式
     
     std::vector<uint8_t> data = {
@@ -363,11 +367,14 @@ bool CiA402Driver::setTargetPositionPDO(int32_t position) {
         mode, 0x00,
         static_cast<uint8_t>(position & 0xFF),
         static_cast<uint8_t>((position >> 8) & 0xFF),
-        static_cast<uint8_t>((position >> 16) & 0xFF)
+        static_cast<uint8_t>((position >> 16) & 0xFF),
+        static_cast<uint8_t>((position >> 24) & 0xFF)
     };
     
     std::cout << "Sending position command via PDO: " << position 
-              << ", control word: 0x" << std::hex << ctrl_word << std::dec << std::endl;
+              << ", control word: 0x" << std::hex << ctrl_word 
+              << ", mode: " << std::dec << static_cast<int>(mode)
+              << ", absolute: " << (absolute ? "yes" : "no") << std::endl;
     
     return canopen_->sendPDO(1, data);
 }
