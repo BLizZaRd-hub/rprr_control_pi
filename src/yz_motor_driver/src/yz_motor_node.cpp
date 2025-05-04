@@ -13,6 +13,8 @@ YZMotorNode::YZMotorNode()
     this->declare_parameter("velocity_scale", 10.0);     // 速度值 = rpm / 10
     this->declare_parameter("profile_velocity", 1000);  // 默认速度
     this->declare_parameter("profile_acceleration", 1000);  // 默认加速度
+    this->declare_parameter("enable_status_monitoring", true);
+    enable_status_monitoring_ = this->get_parameter("enable_status_monitoring").as_bool();
     
     // 获取参数
     can_interface_ = this->get_parameter("can_interface").as_string();
@@ -96,10 +98,12 @@ YZMotorNode::YZMotorNode()
         "velocity_rpm_cmd", 10,
         std::bind(&YZMotorNode::velocityRpmCmdCallback, this, std::placeholders::_1));
     
-    // 创建定时器
-    status_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(100),
-        std::bind(&YZMotorNode::statusTimerCallback, this));
+    // 只有在启用状态监控时才创建定时器
+    if (enable_status_monitoring_) {
+        status_timer_ = this->create_wall_timer(
+            std::chrono::seconds(1),  // 1秒更新一次
+            std::bind(&YZMotorNode::updateStatus, this));
+    }
     
     set_velocity_srv_ = this->create_service<std_srvs::srv::Trigger>(
         "increase_velocity",
@@ -413,9 +417,29 @@ void YZMotorNode::velocityRpmCmdCallback(const std_msgs::msg::Float32::SharedPtr
     cia402_driver_->setTargetVelocity(velocity);
 }
 
-void YZMotorNode::statusTimerCallback() {
-    if (!cia402_driver_) {
+void YZMotorNode::updateStatus() {
+    if (!cia402_driver_ || !enable_status_monitoring_) {
         return;
+    }
+    
+    // 更新状态
+    CiA402State state = cia402_driver_->getState();
+    int32_t position = cia402_driver_->getPosition();
+    
+    // 只在状态变化时打印日志
+    static CiA402State last_state = CiA402State::NOT_READY;
+    static int32_t last_position = 0;
+    
+    if (state != last_state) {
+        RCLCPP_INFO(this->get_logger(), "Motor state changed: %d -> %d", 
+                   static_cast<int>(last_state), static_cast<int>(state));
+        last_state = state;
+    }
+    
+    // 只有当位置变化超过阈值时才打印
+    if (std::abs(position - last_position) > 100) {
+        RCLCPP_DEBUG(this->get_logger(), "Motor position: %d", position);
+        last_position = position;
     }
     
     // 发布位置
