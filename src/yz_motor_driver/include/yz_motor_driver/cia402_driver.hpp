@@ -95,7 +95,7 @@ private:
     std::shared_ptr<CANopenDriver> canopen_;
     uint16_t status_word_;
     uint16_t control_word_;
-    OperationMode current_mode_;
+    OperationMode operation_mode_;  // Changed from current_mode_ to operation_mode_
     
     // 辅助函数
     bool setControlWord(uint16_t control_word);
