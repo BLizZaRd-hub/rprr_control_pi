@@ -57,7 +57,7 @@ public:
     // 位置控制
     bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = true);
     int32_t getCurrentPosition();
-    int32_t getTargetPosition();  // 保留这一个声明
+    int32_t getTargetPosition();
 
     // 速度控制
     bool setTargetVelocity(int32_t velocity);
@@ -78,6 +78,7 @@ public:
     bool setProfileAcceleration(uint32_t acceleration);
     bool setGearRatio(uint16_t numerator, uint16_t denominator);
     uint16_t getControlWord();
+    int32_t getTargetPosition();
     uint32_t getProfileVelocity();
     uint32_t getProfileAcceleration();
 
