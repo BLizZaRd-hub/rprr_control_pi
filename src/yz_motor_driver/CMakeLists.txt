@@ -41,8 +41,10 @@ ament_target_dependencies(${PROJECT_NAME}_node
   rclcpp_components
   std_msgs
   std_srvs
-  yz_motor_driver_lib # 链接到我们自己的库
+  # yz_motor_driver_lib # 链接到我们自己的库
 )
+# 使用 target_link_libraries 链接到本地定义的库 yz_motor_driver_lib
+target_link_libraries(${PROJECT_NAME}_node PRIVATE yz_motor_driver_lib) # <--- 添加这行
 # 设置目标属性
 set_target_properties(${PROJECT_NAME}_node PROPERTIES
     CXX_STANDARD ${CMAKE_CXX_STANDARD}
