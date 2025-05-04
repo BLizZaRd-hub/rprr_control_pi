@@ -33,38 +33,34 @@ enum class OperationMode {
 // CiA 402驱动类
 class CiA402Driver {
 public:
-    // 构造函数和析构函数
     CiA402Driver(std::shared_ptr<CANopenDriver> canopen);
     ~CiA402Driver();
     
     // 初始化
     bool init();
     
-    // 操作模式设置
-    bool setOperationMode(OperationMode mode);
-    OperationMode getOperationMode();
-    
     // 状态控制
     bool enableOperation();
     bool enableOperationPDO();
     bool disableOperation();
-    bool quickStop();
     bool resetFault();
-    bool transitionToState(CiA402State target_state, std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+    
+    // 操作模式设置
+    bool setOperationMode(OperationMode mode);
+    OperationMode getOperationMode();
     
     // 位置控制
-    bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = false);
+    bool setTargetPosition(int32_t position);
     bool setTargetPositionPDO(int32_t position, bool absolute = true);
-    bool setProfileVelocity(uint32_t velocity);
-    bool setProfileAcceleration(uint32_t acceleration);
-    bool setProfileDeceleration(uint32_t deceleration);
-    uint32_t getProfileVelocity();
-    uint32_t getProfileAcceleration();
+    int32_t getPosition();
+    
+    // 添加相对位置命令方法
+    bool setRelativePositionCommand(int32_t position);
     
     // 速度控制
     bool setTargetVelocity(int32_t velocity);
     bool setTargetVelocityPDO(int32_t velocity);
-    int32_t getCurrentVelocity();
+    int32_t getVelocity();
     
     // 回零功能
     bool startHoming(uint8_t method);

@@ -449,7 +449,8 @@ void YZMotorNode::setAccelerationCallback(
 // 主函数
 int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<yz_motor_driver::YZMotorNode>();
+    // 使用NodeOptions创建节点
+    auto node = std::make_shared<yz_motor_driver::YZMotorNode>(rclcpp::NodeOptions());
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;

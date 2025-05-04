@@ -26,7 +26,8 @@ namespace srv {
 
 class YZMotorNode : public rclcpp::Node {
 public:
-    YZMotorNode();
+    // 修改构造函数声明，添加NodeOptions参数
+    explicit YZMotorNode(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
     ~YZMotorNode();
     
 private:
