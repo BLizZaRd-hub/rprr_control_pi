@@ -67,7 +67,6 @@ private:
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr position_deg_cmd_sub_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr velocity_cmd_sub_;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr velocity_rpm_cmd_sub_;
-    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr position_deg_relative_cmd_sub_;
     
     // 定时器
     rclcpp::TimerBase::SharedPtr status_timer_;
@@ -96,7 +95,6 @@ private:
     
     void positionCmdCallback(const std_msgs::msg::Int32::SharedPtr msg);
     void positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr msg);
-    void positionDegRelativeCmdCallback(const std_msgs::msg::Float32::SharedPtr msg);
     void velocityCmdCallback(const std_msgs::msg::Int32::SharedPtr msg);
     void velocityRpmCmdCallback(const std_msgs::msg::Float32::SharedPtr msg);
     

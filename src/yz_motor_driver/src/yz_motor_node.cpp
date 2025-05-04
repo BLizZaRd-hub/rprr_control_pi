@@ -84,10 +84,6 @@ YZMotorNode::YZMotorNode()
         "position_deg_cmd", 10,
         std::bind(&YZMotorNode::positionDegCmdCallback, this, std::placeholders::_1));
     
-    position_deg_relative_cmd_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-        "position_deg_relative_cmd", 10,
-        std::bind(&YZMotorNode::positionDegRelativeCmdCallback, this, std::placeholders::_1));
-    
     velocity_cmd_sub_ = this->create_subscription<std_msgs::msg::Int32>(
         "velocity_cmd", 10,
         std::bind(&YZMotorNode::velocityCmdCallback, this, std::placeholders::_1));
@@ -252,22 +248,6 @@ void YZMotorNode::positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr
     // 修改为相对位置模式 (false)
     bool result = cia402_driver_->setTargetPositionPDO(position, false);
     RCLCPP_INFO(this->get_logger(), "setTargetPositionPDO result: %s", result ? "success" : "failed");
-}
-
-void YZMotorNode::positionDegRelativeCmdCallback(const std_msgs::msg::Float32::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "Received position_deg_relative_cmd: %.2f", msg->data);
-    
-    if (!cia402_driver_) {
-        RCLCPP_ERROR(this->get_logger(), "CiA402 driver not initialized");
-        return;
-    }
-    
-    int32_t position = degreesToEncoder(msg->data);
-    RCLCPP_INFO(this->get_logger(), "Converted to relative encoder position: %d", position);
-    
-    // 使用相对位置模式
-    bool result = cia402_driver_->setTargetPositionPDO(position, false);
-    RCLCPP_INFO(this->get_logger(), "setTargetPositionPDO (relative) result: %s", result ? "success" : "failed");
 }
 
 void YZMotorNode::velocityCmdCallback(const std_msgs::msg::Int32::SharedPtr msg) {
