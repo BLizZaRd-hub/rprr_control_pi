@@ -160,9 +160,29 @@ bool CiA402Driver::setTargetPosition(int32_t position, bool absolute, bool immed
     return canopen_->writeSDO<uint16_t>(0x6040, 0, control_word_);
 }
 
-int32_t CiA402Driver::getCurrentPosition() {
+int32_t CiA402Driver::getPosition() {
+    static auto last_read_time = std::chrono::steady_clock::now();
+    auto current_time = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        current_time - last_read_time).count();
+    
+    // 如果距离上次读取不到100ms，则返回缓存的位置
+    static int32_t cached_position = 0;
+    if (elapsed < 100) {
+        return cached_position;
+    }
+    
+    // 更新时间戳
+    last_read_time = current_time;
+    
+    // 读取位置
     int32_t position = 0;
-    canopen_->readSDO<int32_t>(0x6064, 0, position);
+    if (!canopen_->readSDO<int32_t>(0x6064, 0, position)) {
+        std::cerr << "Failed to read position" << std::endl;
+        return cached_position;  // 读取失败时返回缓存的位置
+    }
+    
+    cached_position = position;
     return position;
 }
 

@@ -33,21 +33,34 @@ enum class OperationMode {
 // CiA 402驱动类
 class CiA402Driver {
 public:
+    // 构造函数和析构函数
     CiA402Driver(std::shared_ptr<CANopenDriver> canopen);
     ~CiA402Driver();
-
+    
     // 初始化
     bool init();
-
-    // 状态机控制
+    
+    // 操作模式设置
+    bool setOperationMode(OperationMode mode);
+    OperationMode getOperationMode();
+    
+    // 状态控制
     bool enableOperation();
+    bool enableOperationPDO();
     bool disableOperation();
     bool quickStop();
     bool resetFault();
-    bool enableOperationPDO();  // 添加PDO使能方法
-
-    // 状态转换
-    bool transitionToState(CiA402State target_state, std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
+    
+    // 位置控制
+    bool setTargetPosition(int32_t position, bool absolute = true);
+    bool setTargetPositionPDO(int32_t position, bool absolute = true);
+    bool setProfileVelocity(uint32_t velocity);
+    bool setProfileAcceleration(uint32_t acceleration);
+    bool setProfileDeceleration(uint32_t deceleration);
+    
+    // 速度控制
+    bool setTargetVelocity(int32_t velocity);
+    bool setTargetVelocityPDO(int32_t velocity);
     
     // 状态获取
     CiA402State getState();
@@ -55,47 +68,26 @@ public:
     uint16_t getControlWordForState(CiA402State state);
     bool updateStatusWord();
     uint16_t getStatusWord();
-    uint16_t getControlWord();  // 添加获取控制字方法
-    bool isTargetReached();     // 添加目标到达检查
-    bool isFault();             // 添加故障检查
+    uint16_t getControlWord();
+    bool isTargetReached();
+    bool isFault();
+    
+    // 位置和速度获取
     int32_t getPosition();
-    int32_t getVelocity();  // 添加获取速度的函数声明
-
-    // PDO通信方法
-    bool setTargetPositionPDO(int32_t position, bool absolute = true);
-    bool setTargetVelocityPDO(int32_t velocity);
-
-    // 操作模式设置
-    bool setOperationMode(OperationMode mode);
-    OperationMode getOperationMode();
-
-    // 位置控制
-    bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = true);
-    int32_t getCurrentPosition();
-    int32_t getTargetPosition();
-
-    // 速度控制
-    bool setTargetVelocity(int32_t velocity);
-    int32_t getCurrentVelocity();
-
-    // 其他参数设置
-    bool setProfileVelocity(uint32_t velocity);
-    uint32_t getProfileVelocity();  // 添加获取速度方法
-    bool setProfileAcceleration(uint32_t acceleration);
-    uint32_t getProfileAcceleration();  // 添加获取加速度方法
-    bool setProfileDeceleration(uint32_t deceleration);
-    bool setGearRatio(uint16_t numerator, uint16_t denominator);  // 添加设置齿轮比方法
+    int32_t getVelocity();
+    
+    // 参数保存
     bool saveParameters();
-
-    // 回零功能
-    bool startHoming(uint8_t method);
-    bool isHomingComplete();
-
+    
 private:
     std::shared_ptr<CANopenDriver> canopen_;
-    uint16_t control_word_ = 0;
-    uint16_t status_word_ = 0;
-    OperationMode operation_mode_ = OperationMode::NO_MODE;
+    uint16_t status_word_;
+    uint16_t control_word_;
+    OperationMode current_mode_;
+    
+    // 辅助函数
+    bool setControlWord(uint16_t control_word);
+    bool setControlWordPDO(uint16_t control_word);
 };
 
 } // namespace yz_motor_driver
