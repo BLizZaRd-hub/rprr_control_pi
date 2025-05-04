@@ -480,7 +480,7 @@ int32_t YZMotorNode::degreesToEncoder(double degrees) {
 }
 
 double YZMotorNode::encoderToDegrees(int32_t encoder) {
-    return (static_cast<double>(encoder) / position_scale_) * 360.0;
+    return static_cast<double>(encoder) * 360.0 / position_scale_;
 }
 
 int32_t YZMotorNode::rpmToVelocity(double rpm) {
