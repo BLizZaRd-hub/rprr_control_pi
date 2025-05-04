@@ -82,10 +82,12 @@ bool CiA402Driver::setOperationMode(OperationMode mode) {
     return canopen_->writeSDO<uint8_t>(0x6060, 0, static_cast<uint8_t>(mode));
 }
 
-int8_t CiA402Driver::getOperationMode() {
-    int8_t mode = 0;
-    canopen_->readSDO<int8_t>(0x6061, 0, mode);  // 读取当前操作模式显示
-    return mode;
+OperationMode CiA402Driver::getOperationMode() {
+    uint8_t mode;
+    if (canopen_->readSDO<uint8_t>(0x6061, 0, mode)) {
+        return static_cast<OperationMode>(mode);
+    }
+    return operation_mode_;  // 如果读取失败，返回当前设置的模式
 }
 
 bool CiA402Driver::setTargetPosition(int32_t position, bool absolute, bool immediate) {
@@ -350,49 +352,16 @@ bool CiA402Driver::enableOperationPDO() {
 
 bool CiA402Driver::setTargetPositionPDO(int32_t position, bool absolute) {
     // 使用RPDO1发送控制字、操作模式和目标位置
+    uint16_t ctrl_word = 0x001F;  // 包含使能操作位和新设定点位
     
-    // 设置控制字，确保基本使能位(0-3)保持为1
-    uint16_t ctrl_word = 0x000F;  // 基本使能操作位 (Bit 0,1,2,3 = 1)
-    
-    // 关键步骤：设置相对/绝对位置模式位
+    // 设置相对/绝对位置模式位
     if (!absolute) {
-        ctrl_word |= (1 << 6);  // 设置Bit 6 = 1 (相对位置模式)
+        ctrl_word |= (1 << 6);  // 设置Bit 6 (相对位置模式)
     }
     
-    // 设置新设定点位，触发运动
-    ctrl_word |= (1 << 4);  // 设置Bit 4 = 1 (新设定点)
+    uint8_t mode = 1;  // 位置模式
     
-    // 操作模式：位置模式 = 1
-    uint8_t mode = 1;  
-    
-    // 准备PDO数据（注意小端序）
     std::vector<uint8_t> data = {
-        static_cast<uint8_t>(ctrl_word & 0xFF),               // 控制字低字节
-        static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),        // 控制字高字节
-        mode, 0x00,                                           // 操作模式和填充字节
-        static_cast<uint8_t>(position & 0xFF),                // 位置值字节0（最低位）
-        static_cast<uint8_t>((position >> 8) & 0xFF),         // 位置值字节1
-        static_cast<uint8_t>((position >> 16) & 0xFF),        // 位置值字节2
-        static_cast<uint8_t>((position >> 24) & 0xFF)         // 位置值字节3（最高位）
-    };
-    
-    // 记录详细日志（使用DEBUG级别避免过多输出）
-    std::cout << "Sending position command via PDO: " << position 
-              << ", control word: 0x" << std::hex << ctrl_word 
-              << ", mode: " << std::dec << static_cast<int>(mode)
-              << ", absolute: " << (absolute ? "yes" : "no") << std::endl;
-    
-    // 发送PDO
-    bool result = canopen_->sendPDO(1, data);
-    
-    // 等待短暂时间，确保命令被处理
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    
-    // 重要：清除新设定点位，为下一次命令做准备
-    // 这一步可能是可选的，取决于驱动器行为，但建议执行以确保稳定性
-    ctrl_word &= ~(1 << 4);  // 清除Bit 4 (新设定点)
-    
-    std::vector<uint8_t> reset_data = {
         static_cast<uint8_t>(ctrl_word & 0xFF),
         static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
         mode, 0x00,
@@ -402,10 +371,12 @@ bool CiA402Driver::setTargetPositionPDO(int32_t position, bool absolute) {
         static_cast<uint8_t>((position >> 24) & 0xFF)
     };
     
-    // 发送重置控制字的PDO
-    canopen_->sendPDO(1, reset_data);
+    std::cout << "Sending position command via PDO: " << position 
+              << ", control word: 0x" << std::hex << ctrl_word 
+              << ", mode: " << std::dec << static_cast<int>(mode)
+              << ", absolute: " << (absolute ? "yes" : "no") << std::endl;
     
-    return result;
+    return canopen_->sendPDO(1, data);
 }
 
 bool CiA402Driver::setTargetVelocityPDO(int32_t velocity) {
@@ -421,28 +392,6 @@ bool CiA402Driver::setTargetVelocityPDO(int32_t velocity) {
         static_cast<uint8_t>((velocity >> 24) & 0xFF)
     };
     return canopen_->sendPDO(3, data);
-}
-
-uint16_t CiA402Driver::getControlWord() {
-    return control_word_;
-}
-
-int32_t CiA402Driver::getTargetPosition() {
-    int32_t target_position = 0;
-    canopen_->readSDO<int32_t>(0x607A, 0, target_position);
-    return target_position;
-}
-
-uint32_t CiA402Driver::getProfileVelocity() {
-    uint32_t velocity = 0;
-    canopen_->readSDO<uint32_t>(0x6081, 0, velocity);
-    return velocity;
-}
-
-uint32_t CiA402Driver::getProfileAcceleration() {
-    uint32_t acceleration = 0;
-    canopen_->readSDO<uint32_t>(0x6083, 0, acceleration);
-    return acceleration;
 }
 
 
