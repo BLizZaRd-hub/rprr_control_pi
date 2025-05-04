@@ -50,25 +50,17 @@ public:
     bool disableOperation();
     bool quickStop();
     bool resetFault();
-    bool transitionToState(CiA402State target_state, std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
     
     // 位置控制
-    bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = false);
+    bool setTargetPosition(int32_t position, bool absolute = true);
     bool setTargetPositionPDO(int32_t position, bool absolute = true);
     bool setProfileVelocity(uint32_t velocity);
     bool setProfileAcceleration(uint32_t acceleration);
     bool setProfileDeceleration(uint32_t deceleration);
-    uint32_t getProfileVelocity();
-    uint32_t getProfileAcceleration();
     
     // 速度控制
     bool setTargetVelocity(int32_t velocity);
     bool setTargetVelocityPDO(int32_t velocity);
-    int32_t getCurrentVelocity();
-    
-    // 回零功能
-    bool startHoming(uint8_t method);
-    bool isHomingComplete();
     
     // 状态获取
     CiA402State getState();
@@ -83,13 +75,9 @@ public:
     // 位置和速度获取
     int32_t getPosition();
     int32_t getVelocity();
-    int32_t getTargetPosition();
     
     // 参数保存
     bool saveParameters();
-    
-    // 齿轮比设置
-    bool setGearRatio(uint16_t numerator, uint16_t denominator);
     
 private:
     std::shared_ptr<CANopenDriver> canopen_;
