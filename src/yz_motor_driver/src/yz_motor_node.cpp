@@ -245,8 +245,8 @@ void YZMotorNode::positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr
     int32_t position = degreesToEncoder(msg->data);
     RCLCPP_INFO(this->get_logger(), "Converted to encoder position: %d", position);
     
-    // 修改为相对位置模式 (false)
-    bool result = cia402_driver_->setTargetPositionPDO(position, false);
+    // 使用PDO而非SDO，默认使用绝对位置模式
+    bool result = cia402_driver_->setTargetPositionPDO(position, true);
     RCLCPP_INFO(this->get_logger(), "setTargetPositionPDO result: %s", result ? "success" : "failed");
 }
 
