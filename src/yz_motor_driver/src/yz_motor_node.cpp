@@ -175,45 +175,40 @@ void YZMotorNode::homeCallback(
 void YZMotorNode::positionModeCallback(
     const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
     std::shared_ptr<std_srvs::srv::SetBool::Response> response) {
+    
     if (!cia402_driver_) {
         response->success = false;
         response->message = "Driver not initialized";
         return;
     }
     
-    if (request->data) {
-        bool result = cia402_driver_->setOperationMode(OperationMode::PROFILE_POSITION);
-        response->success = result;
-        response->message = result ? "Position mode enabled" : "Failed to enable position mode";
-    } else {
-        response->success = true;
-        response->message = "No action taken";
-    }
+    bool result = cia402_driver_->setOperationMode(OperationMode::PROFILE_POSITION);
+    response->success = result;
+    response->message = result ? "Set to position mode" : "Failed to set position mode";
+    
+    RCLCPP_INFO(this->get_logger(), "Set to position mode: %s", result ? "success" : "failed");
 }
 
 void YZMotorNode::velocityModeCallback(
     const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
     std::shared_ptr<std_srvs::srv::SetBool::Response> response) {
+    
     if (!cia402_driver_) {
         response->success = false;
         response->message = "Driver not initialized";
         return;
     }
     
-    if (request->data) {
-        bool result = cia402_driver_->setOperationMode(OperationMode::PROFILE_VELOCITY);
-        response->success = result;
-        response->message = result ? "Velocity mode enabled" : "Failed to enable velocity mode";
-    } else {
-        response->success = true;
-        response->message = "No action taken";
-    }
+    bool result = cia402_driver_->setOperationMode(OperationMode::PROFILE_VELOCITY);
+    response->success = result;
+    response->message = result ? "Set to velocity mode" : "Failed to set velocity mode";
+    
+    RCLCPP_INFO(this->get_logger(), "Set to velocity mode: %s", result ? "success" : "failed");
 }
 
 void YZMotorNode::saveParamsCallback(
     const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-    (void)request;  // 未使用
     
     if (!cia402_driver_) {
         response->success = false;
@@ -324,12 +319,12 @@ double YZMotorNode::encoderToDegrees(int32_t encoder) {
     return static_cast<double>(encoder) * 360.0 / position_scale_;
 }
 
-int32_t YZMotorNode::rpmToVelocity(double rpm) {
+int32_t YZMotorNode::rpmToVelocity(float rpm) {
     return static_cast<int32_t>(rpm * velocity_scale_);
 }
 
-double YZMotorNode::velocityToRpm(int32_t velocity) {
-    return static_cast<double>(velocity) / velocity_scale_;
+float YZMotorNode::velocityToRpm(int32_t velocity) {
+    return static_cast<float>(velocity) / velocity_scale_;
 }
 
 void YZMotorNode::setVelocityCallback(

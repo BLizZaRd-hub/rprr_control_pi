@@ -75,6 +75,8 @@ bool CANopenDriver::readSDO(uint16_t index, uint8_t subindex, T& value) {
     // 在实际实现中，这里应该发送SDO读取请求并等待响应
     
     // 为了避免未使用参数的警告
+    (void)index;
+    (void)subindex;
     (void)value;
     
     // 返回成功
