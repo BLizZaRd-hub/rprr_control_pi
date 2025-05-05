@@ -191,6 +191,12 @@ template<>
 bool CANopenDriver::readSDO<uint8_t>(uint16_t index, uint8_t subindex, uint8_t& value) {
     // 实际实现中需要发送SDO请求并等待响应
     // 这里简化处理，实际应用需要完善
+    
+    // 标记参数为已使用，避免警告
+    (void)index;
+    (void)subindex;
+    (void)value;
+    
     return true;
 }
 
@@ -198,6 +204,12 @@ template<>
 bool CANopenDriver::readSDO<uint16_t>(uint16_t index, uint8_t subindex, uint16_t& value) {
     // 实际实现中需要发送SDO请求并等待响应
     // 这里简化处理，实际应用需要完善
+    
+    // 标记参数为已使用，避免警告
+    (void)index;
+    (void)subindex;
+    (void)value;
+    
     return true;
 }
 
@@ -205,6 +217,12 @@ template<>
 bool CANopenDriver::readSDO<uint32_t>(uint16_t index, uint8_t subindex, uint32_t& value) {
     // 实际实现中需要发送SDO请求并等待响应
     // 这里简化处理，实际应用需要完善
+    
+    // 标记参数为已使用，避免警告
+    (void)index;
+    (void)subindex;
+    (void)value;
+    
     return true;
 }
 

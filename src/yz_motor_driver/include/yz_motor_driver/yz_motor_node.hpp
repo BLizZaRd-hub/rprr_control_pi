@@ -58,10 +58,12 @@ private:
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr enable_srv_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr disable_srv_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_srv_;
-    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr home_srv_;
+    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr home_srv_;  // 修改为Trigger类型
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_params_srv_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr position_mode_srv_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr velocity_mode_srv_;
+    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_velocity_srv_;  // 添加缺失的服务
+    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_acceleration_srv_;  // 添加缺失的服务
     
     // 回调函数
     void statusTimerCallback();
@@ -80,20 +82,26 @@ private:
                          std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void resetCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                        std::shared_ptr<std_srvs::srv::Trigger::Response> response);
-    void homeCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
-                      std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+    void homeCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,  // 修改为Trigger类型
+                      std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void saveParamsCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                            std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void positionModeCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
                              std::shared_ptr<std_srvs::srv::SetBool::Response> response);
     void velocityModeCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
                              std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+    void setVelocityCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,  // 添加缺失的回调
+                            std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+    void setAccelerationCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,  // 添加缺失的回调
+                                std::shared_ptr<std_srvs::srv::SetBool::Response> response);
     
     // 辅助函数
     int32_t angleToPosition(float angle);
     float positionToAngle(int32_t position);
     int32_t rpmToVelocity(float rpm);
     float velocityToRpm(int32_t velocity);
+    int32_t degreesToEncoder(double degrees);  // 添加缺失的函数声明
+    double encoderToDegrees(int32_t encoder);  // 添加缺失的函数声明
 };
 
 } // namespace yz_motor_driver
