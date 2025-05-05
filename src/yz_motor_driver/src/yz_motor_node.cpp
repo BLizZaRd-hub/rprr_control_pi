@@ -334,15 +334,22 @@ void YZMotorNode::setVelocityCallback(
     
     // 使用当前的profile_velocity参数值
     uint32_t velocity = current_profile_velocity_;
-    bool result = cia402_driver_->setProfileVelocity(velocity);
+    bool result = false;
     
-    response->success = result;
-    response->message = result ? 
-        "Set profile velocity to " + std::to_string(velocity) : 
-        "Failed to set profile velocity";
-    
-    RCLCPP_INFO(this->get_logger(), "Set profile velocity to %d: %s", 
-                velocity, result ? "success" : "failed");
+    if (request->data) {
+        result = cia402_driver_->setProfileVelocity(velocity);
+        
+        response->success = result;
+        response->message = result ? 
+            "Set profile velocity to " + std::to_string(velocity) : 
+            "Failed to set profile velocity";
+        
+        RCLCPP_INFO(this->get_logger(), "Set profile velocity to %d: %s", 
+                    velocity, result ? "success" : "failed");
+    } else {
+        response->success = true;
+        response->message = "No action taken";
+    }
 }
 
 void YZMotorNode::setAccelerationCallback(
@@ -357,15 +364,22 @@ void YZMotorNode::setAccelerationCallback(
     
     // 使用当前的profile_acceleration参数值
     uint32_t acceleration = current_profile_acceleration_;
-    bool result = cia402_driver_->setProfileAcceleration(acceleration);
+    bool result = false;
     
-    response->success = result;
-    response->message = result ? 
-        "Set profile acceleration to " + std::to_string(acceleration) : 
-        "Failed to set profile acceleration";
-    
-    RCLCPP_INFO(this->get_logger(), "Set profile acceleration to %d: %s", 
-                acceleration, result ? "success" : "failed");
+    if (request->data) {
+        result = cia402_driver_->setProfileAcceleration(acceleration);
+        
+        response->success = result;
+        response->message = result ? 
+            "Set profile acceleration to " + std::to_string(acceleration) : 
+            "Failed to set profile acceleration";
+        
+        RCLCPP_INFO(this->get_logger(), "Set profile acceleration to %d: %s", 
+                    acceleration, result ? "success" : "failed");
+    } else {
+        response->success = true;
+        response->message = "No action taken";
+    }
 }
 
 } // namespace yz_motor_driver

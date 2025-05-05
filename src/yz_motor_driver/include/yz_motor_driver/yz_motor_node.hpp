@@ -31,6 +31,8 @@ private:
     int node_id_;
     double position_scale_;
     double velocity_scale_;
+    int current_profile_velocity_;
+    int current_profile_acceleration_;
     
     // ROS2服务
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr enable_srv_;
