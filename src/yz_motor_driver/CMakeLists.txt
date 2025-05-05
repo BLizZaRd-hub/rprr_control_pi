@@ -39,6 +39,14 @@ add_executable(yz_motor_node src/yz_motor_node.cpp)
 target_link_libraries(yz_motor_node canopen_driver cia402_driver)
 ament_target_dependencies(yz_motor_node rclcpp std_msgs std_srvs)
 
+# 添加SYNC主时钟库和节点
+add_library(sync_master src/sync_master.cpp)
+target_link_libraries(sync_master pthread rt)
+
+add_executable(sync_master_node src/sync_master_node.cpp)
+target_link_libraries(sync_master_node sync_master)
+ament_target_dependencies(sync_master_node rclcpp std_msgs std_srvs)
+
 # 安装目标
 install(TARGETS
   canopen_driver
@@ -46,6 +54,8 @@ install(TARGETS
   yz_motor_node
   can_bandwidth_planner
   bandwidth_planner_node
+  sync_master
+  sync_master_node
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
