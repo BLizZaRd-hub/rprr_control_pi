@@ -5,7 +5,7 @@
 namespace yz_motor_driver {
 
 YZMotorNode::YZMotorNode()
-    : Node("yz_motor_node") {
+    : Node("yz_motor_node"), last_target_reached_(false) {
     // 声明参数
     this->declare_parameter("can_interface", "can0");
     this->declare_parameter("node_id", 1);
@@ -245,8 +245,8 @@ void YZMotorNode::positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr
     int32_t position = degreesToEncoder(msg->data);
     RCLCPP_INFO(this->get_logger(), "Converted to encoder position: %d", position);
     
-    // 使用PDO而非SDO，默认使用绝对位置模式
-    bool result = cia402_driver_->setTargetPositionPDO(position, true);
+    // 修改这里：将第二个参数设为false表示相对位置模式
+    bool result = cia402_driver_->setTargetPositionPDO(position, false);
     RCLCPP_INFO(this->get_logger(), "setTargetPositionPDO result: %s", result ? "success" : "failed");
 }
 
@@ -295,6 +295,9 @@ void YZMotorNode::statusTimerCallback() {
         
         if (target_reached && !last_target_reached_) {
             RCLCPP_INFO(this->get_logger(), "Target position reached");
+            
+            // 目标到达后，清除Bit 4，为下一个位置命令准备
+            cia402_driver_->clearNewSetpointBit();
         }
         
         last_target_reached_ = target_reached;
@@ -304,7 +307,7 @@ void YZMotorNode::statusTimerCallback() {
         status_msg->data = status;
         status_pub_->publish(std::move(status_msg));
         
-        // 其他状态发布代码...
+        // 其他状态处理...
     }
 }
 

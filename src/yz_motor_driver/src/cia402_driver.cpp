@@ -5,7 +5,7 @@
 namespace yz_motor_driver {
 
 CiA402Driver::CiA402Driver(std::shared_ptr<CANopenDriver> canopen)
-    : canopen_(canopen) {
+    : canopen_(canopen), bit4_high_(false) {
 }
 
 CiA402Driver::~CiA402Driver() {
@@ -352,24 +352,49 @@ bool CiA402Driver::setTargetPositionPDO(int32_t position, bool absolute) {
         ctrl_word |= (1 << 6);  // 设置Bit 6 (相对位置模式)
     }
     
-    // 设置New set-point位
-    ctrl_word |= (1 << 4);
-    
     // 设置immediate位
     ctrl_word |= (1 << 5);
     
     uint8_t mode = 1;  // 位置模式 (PPM)
     
+    // 第一步：确保Bit 4为0，同时设置目标位置
+    if (bit4_high_) {
+        // 如果Bit 4当前为高，先发送一帧将其置低
+        ctrl_word &= ~(1 << 4);  // 清除Bit 4
+        
+        std::vector<uint8_t> reset_data = {
+            static_cast<uint8_t>(ctrl_word & 0xFF),
+            static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
+            mode,
+            static_cast<uint8_t>(position & 0xFF),
+            static_cast<uint8_t>((position >> 8) & 0xFF),
+            static_cast<uint8_t>((position >> 16) & 0xFF),
+            static_cast<uint8_t>((position >> 24) & 0xFF)
+        };
+        
+        if (!canopen_->sendPDO(1, reset_data)) {
+            return false;
+        }
+        
+        // 短暂延时确保CAN总线有时间处理
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        bit4_high_ = false;
+    }
+    
+    // 第二步：设置Bit 4为1，产生上升沿
+    ctrl_word |= (1 << 4);  // 设置Bit 4
+    
     std::vector<uint8_t> data = {
         static_cast<uint8_t>(ctrl_word & 0xFF),
         static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
-        mode, 0x00,
+        mode,
         static_cast<uint8_t>(position & 0xFF),
         static_cast<uint8_t>((position >> 8) & 0xFF),
         static_cast<uint8_t>((position >> 16) & 0xFF),
         static_cast<uint8_t>((position >> 24) & 0xFF)
     };
     
+    bit4_high_ = true;
     return canopen_->sendPDO(1, data);
 }
 
@@ -391,5 +416,29 @@ bool CiA402Driver::setTargetVelocityPDO(int32_t velocity) {
     return canopen_->sendPDO(3, data);
 }
 
+bool CiA402Driver::clearNewSetpointBit() {
+    if (!bit4_high_) {
+        return true;  // 已经是低，无需操作
+    }
+    
+    // 获取当前控制字
+    uint16_t ctrl_word = control_word_;
+    ctrl_word &= ~(1 << 4);  // 清除Bit 4
+    
+    uint8_t mode = static_cast<uint8_t>(operation_mode_);
+    
+    std::vector<uint8_t> data = {
+        static_cast<uint8_t>(ctrl_word & 0xFF),
+        static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
+        mode,
+        0, 0, 0, 0  // 保持目标位置不变
+    };
+    
+    bool result = canopen_->sendPDO(1, data);
+    if (result) {
+        bit4_high_ = false;
+    }
+    return result;
+}
 
 } // namespace yz_motor_driver
