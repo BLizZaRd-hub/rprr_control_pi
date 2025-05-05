@@ -317,17 +317,22 @@ bool CiA402Driver::updateStatusWord() {
         return false;
     }
     
-    status_word_ = new_status_word;
-    
-    // 打印状态字详细信息
-    std::cout << "Status Word: 0x" << std::hex << status_word_ << std::dec << std::endl;
-    std::cout << "  Ready to Switch On: " << ((status_word_ & 0x0001) ? "Yes" : "No") << std::endl;
-    std::cout << "  Switched On: " << ((status_word_ & 0x0002) ? "Yes" : "No") << std::endl;
-    std::cout << "  Operation Enabled: " << ((status_word_ & 0x0004) ? "Yes" : "No") << std::endl;
-    std::cout << "  Fault: " << ((status_word_ & 0x0008) ? "Yes" : "No") << std::endl;
-    std::cout << "  Quick Stop: " << ((status_word_ & 0x0020) ? "No" : "Yes") << std::endl;
-    std::cout << "  Switch On Disabled: " << ((status_word_ & 0x0040) ? "Yes" : "No") << std::endl;
-    std::cout << "  Target Reached: " << ((status_word_ & 0x0400) ? "Yes" : "No") << std::endl;
+    // 只有当状态字发生变化时才打印详细信息
+    if (status_word_ != new_status_word) {
+        status_word_ = new_status_word;
+        
+        // 使用DEBUG级别而不是INFO级别打印
+        if (RCLCPP_DEBUG_ONCE) {
+            std::cout << "Status Word: 0x" << std::hex << status_word_ << std::dec << std::endl;
+            std::cout << "  Ready to Switch On: " << ((status_word_ & 0x0001) ? "Yes" : "No") << std::endl;
+            std::cout << "  Switched On: " << ((status_word_ & 0x0002) ? "Yes" : "No") << std::endl;
+            std::cout << "  Operation Enabled: " << ((status_word_ & 0x0004) ? "Yes" : "No") << std::endl;
+            std::cout << "  Fault: " << ((status_word_ & 0x0008) ? "Yes" : "No") << std::endl;
+            std::cout << "  Quick Stop: " << ((status_word_ & 0x0020) ? "No" : "Yes") << std::endl;
+            std::cout << "  Switch On Disabled: " << ((status_word_ & 0x0040) ? "Yes" : "No") << std::endl;
+            std::cout << "  Target Reached: " << ((status_word_ & 0x0400) ? "Yes" : "No") << std::endl;
+        }
+    }
     
     return true;
 }

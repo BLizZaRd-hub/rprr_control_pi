@@ -268,37 +268,43 @@ void YZMotorNode::velocityRpmCmdCallback(const std_msgs::msg::Float32::SharedPtr
 }
 
 void YZMotorNode::statusTimerCallback() {
+    static int counter = 0;
+    counter++;
+    
     if (!cia402_driver_) {
         return;
     }
     
-    // 发布位置
-    int32_t position = cia402_driver_->getCurrentPosition();
-    auto position_msg = std::make_unique<std_msgs::msg::Int32>();
-    position_msg->data = position;
-    position_pub_->publish(std::move(position_msg));
-    
-    // 发布角度位置
-    auto position_deg_msg = std::make_unique<std_msgs::msg::Float32>();
-    position_deg_msg->data = encoderToDegrees(position);
-    position_deg_pub_->publish(std::move(position_deg_msg));
-    
-    // 发布速度
-    int32_t velocity = cia402_driver_->getCurrentVelocity();
-    auto velocity_msg = std::make_unique<std_msgs::msg::Int32>();
-    velocity_msg->data = velocity;
-    velocity_pub_->publish(std::move(velocity_msg));
-    
-    // 发布RPM速度
-    auto velocity_rpm_msg = std::make_unique<std_msgs::msg::Float32>();
-    velocity_rpm_msg->data = velocityToRpm(velocity);
-    velocity_rpm_pub_->publish(std::move(velocity_rpm_msg));
-    
-    // 发布状态字
-    uint16_t status = cia402_driver_->getStatusWord();
-    auto status_msg = std::make_unique<std_msgs::msg::UInt16>();
-    status_msg->data = status;
-    status_pub_->publish(std::move(status_msg));
+    // 只有每5次调用才读取状态（减少CAN总线负载）
+    if (counter % 5 == 0) {
+        // 发布位置
+        int32_t position = cia402_driver_->getCurrentPosition();
+        auto position_msg = std::make_unique<std_msgs::msg::Int32>();
+        position_msg->data = position;
+        position_pub_->publish(std::move(position_msg));
+        
+        // 发布角度位置
+        auto position_deg_msg = std::make_unique<std_msgs::msg::Float32>();
+        position_deg_msg->data = encoderToDegrees(position);
+        position_deg_pub_->publish(std::move(position_deg_msg));
+        
+        // 发布速度
+        int32_t velocity = cia402_driver_->getCurrentVelocity();
+        auto velocity_msg = std::make_unique<std_msgs::msg::Int32>();
+        velocity_msg->data = velocity;
+        velocity_pub_->publish(std::move(velocity_msg));
+        
+        // 发布RPM速度
+        auto velocity_rpm_msg = std::make_unique<std_msgs::msg::Float32>();
+        velocity_rpm_msg->data = velocityToRpm(velocity);
+        velocity_rpm_pub_->publish(std::move(velocity_rpm_msg));
+        
+        // 发布状态字
+        uint16_t status = cia402_driver_->getStatusWord();
+        auto status_msg = std::make_unique<std_msgs::msg::UInt16>();
+        status_msg->data = status;
+        status_pub_->publish(std::move(status_msg));
+    }
 }
 
 int32_t YZMotorNode::degreesToEncoder(double degrees) {
