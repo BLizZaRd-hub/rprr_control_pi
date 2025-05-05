@@ -63,8 +63,9 @@ public:
     double getSafeUtilization() const { return safe_util_; }
 
 private:
-    static constexpr uint32_t OVERHEAD_BITS = 47;  // 11位ID帧：SOF+ID+RTR+IDE+...+CRC+EOF+IFS
-    static constexpr uint8_t MAX_DLC = 8;
+    // 使用inline关键字解决链接问题
+    static inline constexpr uint32_t OVERHEAD_BITS = 47;  // 11位ID帧：SOF+ID+RTR+IDE+...+CRC+EOF+IFS
+    static inline constexpr uint8_t MAX_DLC = 8;
     
     uint32_t bitrate_;           // 总线比特率
     double safe_util_;           // 安全利用率
@@ -83,3 +84,4 @@ private:
 } // namespace yz_motor_driver
 
 #endif // CAN_BANDWIDTH_PLANNER_HPP
+
