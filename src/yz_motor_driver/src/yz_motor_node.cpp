@@ -19,8 +19,8 @@ YZMotorNode::YZMotorNode()
     node_id_ = this->get_parameter("node_id").as_int();
     position_scale_ = this->get_parameter("position_scale").as_double();
     velocity_scale_ = this->get_parameter("velocity_scale").as_double();
-    uint32_t profile_velocity = this->get_parameter("profile_velocity").as_int();
-    uint32_t profile_acceleration = this->get_parameter("profile_acceleration").as_int();
+    current_profile_velocity_ = this->get_parameter("profile_velocity").as_int();
+    current_profile_acceleration_ = this->get_parameter("profile_acceleration").as_int();
     
     // 创建驱动实例
     canopen_driver_ = std::make_shared<CANopenDriver>(can_interface_, static_cast<uint8_t>(node_id_));
@@ -37,10 +37,10 @@ YZMotorNode::YZMotorNode()
     
     // 设置电机速度和加速度参数
     if (cia402_driver_) {
-        cia402_driver_->setProfileVelocity(profile_velocity);
-        cia402_driver_->setProfileAcceleration(profile_acceleration);
+        cia402_driver_->setProfileVelocity(current_profile_velocity_);
+        cia402_driver_->setProfileAcceleration(current_profile_acceleration_);
         RCLCPP_INFO(this->get_logger(), "Set profile velocity: %d, acceleration: %d", 
-                    profile_velocity, profile_acceleration);
+                    current_profile_velocity_, current_profile_acceleration_);
     }
     
     // 创建服务
@@ -323,35 +323,47 @@ double YZMotorNode::velocityToRpm(int32_t velocity) {
 }
 
 void YZMotorNode::setVelocityCallback(
-    const std::shared_ptr<example_interfaces::srv::SetInt64::Request> request,
-    std::shared_ptr<example_interfaces::srv::SetInt64::Response> response) {
+    const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+    std::shared_ptr<std_srvs::srv::SetBool::Response> response) {
     
     if (!cia402_driver_) {
         response->success = false;
+        response->message = "Driver not initialized";
         return;
     }
     
-    uint32_t velocity = static_cast<uint32_t>(request->data);
+    // 使用当前的profile_velocity参数值
+    uint32_t velocity = current_profile_velocity_;
     bool result = cia402_driver_->setProfileVelocity(velocity);
     
     response->success = result;
+    response->message = result ? 
+        "Set profile velocity to " + std::to_string(velocity) : 
+        "Failed to set profile velocity";
+    
     RCLCPP_INFO(this->get_logger(), "Set profile velocity to %d: %s", 
                 velocity, result ? "success" : "failed");
 }
 
 void YZMotorNode::setAccelerationCallback(
-    const std::shared_ptr<example_interfaces::srv::SetInt64::Request> request,
-    std::shared_ptr<example_interfaces::srv::SetInt64::Response> response) {
+    const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+    std::shared_ptr<std_srvs::srv::SetBool::Response> response) {
     
     if (!cia402_driver_) {
         response->success = false;
+        response->message = "Driver not initialized";
         return;
     }
     
-    uint32_t acceleration = static_cast<uint32_t>(request->data);
+    // 使用当前的profile_acceleration参数值
+    uint32_t acceleration = current_profile_acceleration_;
     bool result = cia402_driver_->setProfileAcceleration(acceleration);
     
     response->success = result;
+    response->message = result ? 
+        "Set profile acceleration to " + std::to_string(acceleration) : 
+        "Failed to set profile acceleration";
+    
     RCLCPP_INFO(this->get_logger(), "Set profile acceleration to %d: %s", 
                 acceleration, result ? "success" : "failed");
 }

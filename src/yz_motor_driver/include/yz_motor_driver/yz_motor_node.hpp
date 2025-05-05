@@ -39,8 +39,8 @@ private:
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr position_mode_srv_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr velocity_mode_srv_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_params_srv_;
-    rclcpp::Service<example_interfaces::srv::SetInt64>::SharedPtr set_velocity_srv_;
-    rclcpp::Service<example_interfaces::srv::SetInt64>::SharedPtr set_acceleration_srv_;
+    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_velocity_srv_;
+    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_acceleration_srv_;
     
     // ROS2话题
     rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr position_pub_;
@@ -71,11 +71,11 @@ private:
     void saveParamsCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                            std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void setVelocityCallback(
-        const std::shared_ptr<example_interfaces::srv::SetInt64::Request> request,
-        std::shared_ptr<example_interfaces::srv::SetInt64::Response> response);
+        const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+        std::shared_ptr<std_srvs::srv::SetBool::Response> response);
     void setAccelerationCallback(
-        const std::shared_ptr<example_interfaces::srv::SetInt64::Request> request,
-        std::shared_ptr<example_interfaces::srv::SetInt64::Response> response);
+        const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+        std::shared_ptr<std_srvs::srv::SetBool::Response> response);
     
     void positionCmdCallback(const std_msgs::msg::Int32::SharedPtr msg);
     void positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr msg);
