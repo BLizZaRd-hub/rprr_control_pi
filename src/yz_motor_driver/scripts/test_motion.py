@@ -10,14 +10,9 @@ class MotorTester(Node):
     def __init__(self):
         super().__init__('motor_tester')
         
-        # 创建单独的电机命令发布者
-        self.motor1_pub = self.create_publisher(Float32, '/motor1_cmd_deg', 10)
-        self.motor2_pub = self.create_publisher(Float32, '/motor2_cmd_deg', 10)
+        # 只创建3号和4号电机的命令发布者
         self.motor3_pub = self.create_publisher(Float32, '/motor3_cmd_deg', 10)
         self.motor4_pub = self.create_publisher(Float32, '/motor4_cmd_deg', 10)
-        
-        # 创建组命令发布者
-        self.group_pub = self.create_publisher(Float32MultiArray, '/joint_group_cmd', 10)
         
         # 创建定时器，每2秒发送一次命令
         self.timer = self.create_timer(2.0, self.timer_callback)
@@ -28,31 +23,19 @@ class MotorTester(Node):
         self.position = -90.0 if self.position > 0 else 90.0
         
         # 添加小的随机相位增量 (±2°)
-        phase_increments = [random.uniform(-2.0, 2.0) for _ in range(4)]
+        phase3 = random.uniform(-2.0, 2.0)
+        phase4 = random.uniform(-2.0, 2.0)
         
-        # 发布到单独的电机话题
-        msg1 = Float32()
-        msg1.data = self.position + phase_increments[0]
-        self.motor1_pub.publish(msg1)
-        
-        msg2 = Float32()
-        msg2.data = self.position + phase_increments[1]
-        self.motor2_pub.publish(msg2)
-        
+        # 只发布到3号和4号电机话题
         msg3 = Float32()
-        msg3.data = self.position + phase_increments[2]
+        msg3.data = self.position + phase3
         self.motor3_pub.publish(msg3)
         
         msg4 = Float32()
-        msg4.data = self.position + phase_increments[3]
+        msg4.data = self.position + phase4
         self.motor4_pub.publish(msg4)
         
-        # 同时发布到组话题
-        group_msg = Float32MultiArray()
-        group_msg.data = [self.position + inc for inc in phase_increments]
-        self.group_pub.publish(group_msg)
-        
-        self.get_logger().info(f'发送位置命令: {[self.position + inc for inc in phase_increments]}')
+        self.get_logger().info(f'发送位置命令: 电机3={self.position + phase3:.2f}°, 电机4={self.position + phase4:.2f}°')
 
 def main(args=None):
     rclpy.init(args=args)
