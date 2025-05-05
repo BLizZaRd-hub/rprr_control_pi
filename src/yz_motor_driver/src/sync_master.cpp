@@ -14,6 +14,9 @@
 #include <errno.h>
 #include <fcntl.h>
 
+// 在实现文件中包含ROS头文件
+#include "rclcpp/rclcpp.hpp"
+
 namespace yz_motor_driver {
 
 // 获取当前单调时钟纳秒值

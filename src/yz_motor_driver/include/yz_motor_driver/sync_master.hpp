@@ -8,8 +8,10 @@
 #include <memory>
 #include <functional>
 
-#include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/float32_multi_array.hpp"
+// 前向声明，避免包含完整的ROS头文件
+namespace rclcpp {
+class Logger;
+}
 
 namespace yz_motor_driver {
 

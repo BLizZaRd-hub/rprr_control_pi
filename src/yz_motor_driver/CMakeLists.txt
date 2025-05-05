@@ -41,6 +41,7 @@ ament_target_dependencies(yz_motor_node rclcpp std_msgs std_srvs)
 
 # 添加SYNC主时钟库和节点
 add_library(sync_master src/sync_master.cpp)
+ament_target_dependencies(sync_master rclcpp std_msgs)
 target_link_libraries(sync_master pthread rt)
 
 add_executable(sync_master_node src/sync_master_node.cpp)
