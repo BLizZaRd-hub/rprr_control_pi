@@ -25,6 +25,15 @@ include_directories(include)
 add_library(canopen_driver src/canopen_driver.cpp)
 add_library(cia402_driver src/cia402_driver.cpp)
 
+# 添加带宽规划器库
+add_library(can_bandwidth_planner src/can_bandwidth_planner.cpp)
+target_link_libraries(can_bandwidth_planner)
+
+# 添加带宽规划器节点
+add_executable(bandwidth_planner_node src/bandwidth_planner_node.cpp)
+target_link_libraries(bandwidth_planner_node can_bandwidth_planner)
+ament_target_dependencies(bandwidth_planner_node rclcpp std_msgs std_srvs)
+
 # 添加可执行文件
 add_executable(yz_motor_node src/yz_motor_node.cpp)
 target_link_libraries(yz_motor_node canopen_driver cia402_driver)
@@ -35,6 +44,8 @@ install(TARGETS
   canopen_driver
   cia402_driver
   yz_motor_node
+  can_bandwidth_planner
+  bandwidth_planner_node
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
