@@ -8,7 +8,10 @@
 #include <std_msgs/msg/u_int16.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <std_srvs/srv/set_bool.hpp>
-#include <example_interfaces/srv/set_int64.hpp>
+// 移除不存在的头文件
+// #include <example_interfaces/srv/set_int64.hpp>
+// 使用标准的整数服务
+#include <std_srvs/srv/empty.hpp>
 #include <memory>
 
 namespace yz_motor_driver {

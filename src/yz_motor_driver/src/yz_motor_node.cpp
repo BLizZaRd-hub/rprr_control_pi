@@ -97,12 +97,12 @@ YZMotorNode::YZMotorNode()
         std::chrono::milliseconds(100),
         std::bind(&YZMotorNode::statusTimerCallback, this));
     
-    set_velocity_srv_ = this->create_service<example_interfaces::srv::SetInt64>(
-        "set_profile_velocity",
+    set_velocity_srv_ = this->create_service<std_srvs::srv::SetBool>(
+        "set_velocity",
         std::bind(&YZMotorNode::setVelocityCallback, this, std::placeholders::_1, std::placeholders::_2));
     
-    set_acceleration_srv_ = this->create_service<example_interfaces::srv::SetInt64>(
-        "set_profile_acceleration",
+    set_acceleration_srv_ = this->create_service<std_srvs::srv::SetBool>(
+        "set_acceleration",
         std::bind(&YZMotorNode::setAccelerationCallback, this, std::placeholders::_1, std::placeholders::_2));
     
     RCLCPP_INFO(this->get_logger(), "YZ Motor node initialized");
