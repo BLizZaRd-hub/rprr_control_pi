@@ -91,7 +91,7 @@ private:
         
         // 如果超过安全阈值，尝试自动调整
         bool success = true;
-        if (utilization > planner_->safe_util_) {
+        if (utilization > planner_->getSafeUtilization()) {
             success = planner_->autoAdjust();
         }
         

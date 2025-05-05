@@ -58,6 +58,9 @@ public:
     
     // 清除所有帧
     void clear();
+    
+    // 获取安全利用率
+    double getSafeUtilization() const { return safe_util_; }
 
 private:
     static constexpr uint32_t OVERHEAD_BITS = 47;  // 11位ID帧：SOF+ID+RTR+IDE+...+CRC+EOF+IFS
