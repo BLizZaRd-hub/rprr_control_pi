@@ -268,7 +268,7 @@ CiA402State CiA402Driver::getStateFromStatusWord(uint16_t status_word) {
     if ((status_word & 0x006F) == 0x0007) return CiA402State::QUICK_STOP_ACTIVE;
     if ((status_word & 0x004F) == 0x000F) return CiA402State::FAULT_REACTION_ACTIVE;
     if ((status_word & 0x004F) == 0x0008) return CiA402State::FAULT;
-    return CiA402State::UNKNOWN;
+    return CiA402State::UNKNOWN;  // 现在UNKNOWN已在枚举中定义
 }
 
 uint16_t CiA402Driver::getControlWordForState(CiA402State state) {

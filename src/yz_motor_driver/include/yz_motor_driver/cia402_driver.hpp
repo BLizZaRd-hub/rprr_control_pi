@@ -16,7 +16,8 @@ enum class CiA402State {
     OPERATION_ENABLED,
     QUICK_STOP_ACTIVE,
     FAULT_REACTION_ACTIVE,
-    FAULT
+    FAULT,
+    UNKNOWN  // 添加UNKNOWN状态
 };
 
 // 操作模式枚举
@@ -51,13 +52,21 @@ public:
     OperationMode getOperationMode();
 
     // 位置控制
-    bool setTargetPosition(int32_t position, bool absolute = true);
+    bool setTargetPosition(int32_t position, bool absolute = true, bool immediate = true);
     bool setTargetPositionPDO(int32_t position, bool absolute = true);
-    int32_t getActualPosition();
+    int32_t getCurrentPosition();  // 与实现匹配
 
     // 速度控制
     bool setTargetVelocity(int32_t velocity);
-    int32_t getActualVelocity();
+    bool setTargetVelocityPDO(int32_t velocity);  // 添加PDO方法声明
+    int32_t getCurrentVelocity();  // 与实现匹配
+
+    // 回零功能
+    bool startHoming(uint8_t method);  // 添加回零方法声明
+    bool isHomingComplete();  // 添加回零完成检查方法声明
+
+    // PDO操作
+    bool enableOperationPDO();  // 添加PDO使能方法声明
 
     // 状态监控
     uint16_t getStatusWord();
