@@ -19,7 +19,8 @@ class SyncMaster {
 public:
     SyncMaster(const std::string& interface = "can0", 
                uint32_t period_ns = 1000000,  // 1kHz
-               double alpha = 0.05);
+               double alpha = 0.05,
+               bool use_hw_timestamp = false);  // 默认禁用硬件时间戳
     ~SyncMaster();
 
     // 启动SYNC主时钟
@@ -56,6 +57,7 @@ private:
     std::atomic<bool> running_;
     std::thread sync_thread_;
     int can_socket_;
+    bool use_hw_timestamp_;  // 是否使用硬件时间戳
     
     // 主时钟线程函数
     void syncThreadFunc();
@@ -74,8 +76,12 @@ private:
     
     // 计算总线负载
     void updateBusLoad();
+    
+    // 获取当前时间（纳秒）
+    uint64_t now_ns();
 };
 
 } // namespace yz_motor_driver
 
 #endif // SYNC_MASTER_HPP
+
