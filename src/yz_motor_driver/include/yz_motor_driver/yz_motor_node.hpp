@@ -91,6 +91,9 @@ private:
     double encoderToDegrees(int32_t encoder);
     int32_t rpmToVelocity(double rpm);
     double velocityToRpm(int32_t velocity);
+    
+    // 状态变量
+    bool last_target_reached_ = false;
 };
 
 } // namespace yz_motor_driver

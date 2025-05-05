@@ -30,22 +30,9 @@ bool CiA402Driver::init() {
 }
 
 bool CiA402Driver::enableOperation() {
-    std::cout << "Enabling motor operation..." << std::endl;
-    
-    // 1. 获取当前状态
-    CiA402State current_state = getState();
-    std::cout << "Current state: " << static_cast<int>(current_state) << std::endl;
-    
-    // 2. 按照状态机顺序使能操作
-    bool result = transitionToState(CiA402State::OPERATION_ENABLED);
-    
-    if (result) {
-        std::cout << "Motor enabled successfully" << std::endl;
-    } else {
-        std::cerr << "Failed to enable motor" << std::endl;
-    }
-    
-    return result;
+    // 直接写入0x000F使能操作（根据手册推荐的启动顺序）
+    control_word_ = 0x000F;
+    return canopen_->writeSDO<uint16_t>(0x6040, 0, control_word_);
 }
 
 bool CiA402Driver::disableOperation() {
@@ -61,16 +48,14 @@ bool CiA402Driver::quickStop() {
 }
 
 bool CiA402Driver::resetFault() {
-    // 清除故障
-    if (getState() != CiA402State::FAULT) {
-        return true;  // 不在故障状态
-    }
-    
     // 设置Bit 7 (Fault Reset)
     control_word_ |= (1 << 7);
     if (!canopen_->writeSDO<uint16_t>(0x6040, 0, control_word_)) {
         return false;
     }
+    
+    // 等待一段时间
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
     // 清除Bit 7
     control_word_ &= ~(1 << 7);
@@ -223,7 +208,18 @@ bool CiA402Driver::setGearRatio(uint16_t numerator, uint16_t denominator) {
 }
 
 bool CiA402Driver::saveParameters() {
-    return canopen_->writeSDO<uint8_t>(0x2614, 0x10, 1);
+    // 设置Modbus使能为2
+    if (!canopen_->writeSDO<uint16_t>(0x2600, 0, 2)) {
+        return false;
+    }
+    
+    // 设置保存标志为5
+    if (!canopen_->writeSDO<uint16_t>(0x2614, 0, 5)) {
+        return false;
+    }
+    
+    std::cout << "Parameters saved. Please power cycle the motor to apply changes." << std::endl;
+    return true;
 }
 
 bool CiA402Driver::transitionToState(CiA402State target_state, std::chrono::milliseconds timeout) {
@@ -263,26 +259,16 @@ bool CiA402Driver::transitionToState(CiA402State target_state, std::chrono::mill
 }
 
 CiA402State CiA402Driver::getStateFromStatusWord(uint16_t status_word) {
-    // 根据CiA 402规范解析状态字
-    if ((status_word & 0x4F) == 0x00) {
-        return CiA402State::NOT_READY_TO_SWITCH_ON;
-    } else if ((status_word & 0x4F) == 0x40) {
-        return CiA402State::SWITCH_ON_DISABLED;
-    } else if ((status_word & 0x6F) == 0x21) {
-        return CiA402State::READY_TO_SWITCH_ON;
-    } else if ((status_word & 0x6F) == 0x23) {
-        return CiA402State::SWITCHED_ON;
-    } else if ((status_word & 0x6F) == 0x27) {
-        return CiA402State::OPERATION_ENABLED;
-    } else if ((status_word & 0x6F) == 0x07) {
-        return CiA402State::QUICK_STOP_ACTIVE;
-    } else if ((status_word & 0x4F) == 0x0F) {
-        return CiA402State::FAULT_REACTION_ACTIVE;
-    } else if ((status_word & 0x4F) == 0x08) {
-        return CiA402State::FAULT;
-    } else {
-        return CiA402State::UNKNOWN;
-    }
+    // 根据状态字位定义判断当前状态
+    if ((status_word & 0x004F) == 0x0000) return CiA402State::NOT_READY_TO_SWITCH_ON;
+    if ((status_word & 0x004F) == 0x0040) return CiA402State::SWITCH_ON_DISABLED;
+    if ((status_word & 0x006F) == 0x0021) return CiA402State::READY_TO_SWITCH_ON;
+    if ((status_word & 0x006F) == 0x0023) return CiA402State::SWITCHED_ON;
+    if ((status_word & 0x006F) == 0x0027) return CiA402State::OPERATION_ENABLED;
+    if ((status_word & 0x006F) == 0x0007) return CiA402State::QUICK_STOP_ACTIVE;
+    if ((status_word & 0x004F) == 0x000F) return CiA402State::FAULT_REACTION_ACTIVE;
+    if ((status_word & 0x004F) == 0x0008) return CiA402State::FAULT;
+    return CiA402State::UNKNOWN;
 }
 
 uint16_t CiA402Driver::getControlWordForState(CiA402State state) {
@@ -359,14 +345,20 @@ bool CiA402Driver::enableOperationPDO() {
 
 bool CiA402Driver::setTargetPositionPDO(int32_t position, bool absolute) {
     // 使用RPDO1发送控制字、操作模式和目标位置
-    uint16_t ctrl_word = 0x001F;  // 包含使能操作位和新设定点位
+    uint16_t ctrl_word = 0x000F;  // 使能操作
     
-    // 设置相对/绝对位置模式位
+    // 设置位置模式位
     if (!absolute) {
         ctrl_word |= (1 << 6);  // 设置Bit 6 (相对位置模式)
     }
     
-    uint8_t mode = 1;  // 位置模式
+    // 设置New set-point位
+    ctrl_word |= (1 << 4);
+    
+    // 设置immediate位
+    ctrl_word |= (1 << 5);
+    
+    uint8_t mode = 1;  // 位置模式 (PPM)
     
     std::vector<uint8_t> data = {
         static_cast<uint8_t>(ctrl_word & 0xFF),
@@ -378,26 +370,24 @@ bool CiA402Driver::setTargetPositionPDO(int32_t position, bool absolute) {
         static_cast<uint8_t>((position >> 24) & 0xFF)
     };
     
-    std::cout << "Sending position command via PDO: " << position 
-              << ", control word: 0x" << std::hex << ctrl_word 
-              << ", mode: " << std::dec << static_cast<int>(mode)
-              << ", absolute: " << (absolute ? "yes" : "no") << std::endl;
-    
     return canopen_->sendPDO(1, data);
 }
 
 bool CiA402Driver::setTargetVelocityPDO(int32_t velocity) {
     // 使用RPDO3发送控制字、操作模式和目标速度
-    // 控制字0x0F（使能操作）
-    // 操作模式3（速度模式）
-    uint8_t mode = 3; // 速度模式
+    uint16_t ctrl_word = 0x000F;  // 使能操作
+    uint8_t mode = 3;  // 速度模式 (PVM)
+    
     std::vector<uint8_t> data = {
-        0x0F, 0x00, mode, 0x00,
+        static_cast<uint8_t>(ctrl_word & 0xFF),
+        static_cast<uint8_t>((ctrl_word >> 8) & 0xFF),
+        mode, 0x00,
         static_cast<uint8_t>(velocity & 0xFF),
         static_cast<uint8_t>((velocity >> 8) & 0xFF),
         static_cast<uint8_t>((velocity >> 16) & 0xFF),
         static_cast<uint8_t>((velocity >> 24) & 0xFF)
     };
+    
     return canopen_->sendPDO(3, data);
 }
 

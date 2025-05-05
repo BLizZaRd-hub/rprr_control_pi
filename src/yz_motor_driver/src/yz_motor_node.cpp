@@ -277,33 +277,34 @@ void YZMotorNode::statusTimerCallback() {
     
     // 只有每5次调用才读取状态（减少CAN总线负载）
     if (counter % 5 == 0) {
-        // 发布位置
-        int32_t position = cia402_driver_->getCurrentPosition();
-        auto position_msg = std::make_unique<std_msgs::msg::Int32>();
-        position_msg->data = position;
-        position_pub_->publish(std::move(position_msg));
-        
-        // 发布角度位置
-        auto position_deg_msg = std::make_unique<std_msgs::msg::Float32>();
-        position_deg_msg->data = encoderToDegrees(position);
-        position_deg_pub_->publish(std::move(position_deg_msg));
-        
-        // 发布速度
-        int32_t velocity = cia402_driver_->getCurrentVelocity();
-        auto velocity_msg = std::make_unique<std_msgs::msg::Int32>();
-        velocity_msg->data = velocity;
-        velocity_pub_->publish(std::move(velocity_msg));
-        
-        // 发布RPM速度
-        auto velocity_rpm_msg = std::make_unique<std_msgs::msg::Float32>();
-        velocity_rpm_msg->data = velocityToRpm(velocity);
-        velocity_rpm_pub_->publish(std::move(velocity_rpm_msg));
-        
-        // 发布状态字
+        // 获取状态字
         uint16_t status = cia402_driver_->getStatusWord();
+        
+        // 检查限位状态
+        bool pos_limit = (status & (1 << 13)) != 0;
+        bool neg_limit = (status & (1 << 12)) != 0;
+        bool target_reached = (status & (1 << 10)) != 0;
+        
+        if (pos_limit) {
+            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Positive limit reached");
+        }
+        
+        if (neg_limit) {
+            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Negative limit reached");
+        }
+        
+        if (target_reached && !last_target_reached_) {
+            RCLCPP_INFO(this->get_logger(), "Target position reached");
+        }
+        
+        last_target_reached_ = target_reached;
+        
+        // 发布状态消息
         auto status_msg = std::make_unique<std_msgs::msg::UInt16>();
         status_msg->data = status;
         status_pub_->publish(std::move(status_msg));
+        
+        // 其他状态发布代码...
     }
 }
 
