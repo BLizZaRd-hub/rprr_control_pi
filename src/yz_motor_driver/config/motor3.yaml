@@ -1,0 +1,9 @@
+motor1:
+  ros__parameters:
+    can_interface: "can0"
+    node_id: 3
+    position_scale: 32768.0  # 1圈 = 32768个编码器脉冲
+    velocity_scale: 10.0     # 速度值 = rpm / 10
+    profile_velocity: 1000   # 默认速度
+    profile_acceleration: 1000  # 默认加速度
+    heartbeat_producer_ms: 1000  # 心跳周期
