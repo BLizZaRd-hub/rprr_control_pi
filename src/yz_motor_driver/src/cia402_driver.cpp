@@ -321,8 +321,10 @@ bool CiA402Driver::updateStatusWord() {
     if (status_word_ != new_status_word) {
         status_word_ = new_status_word;
         
-        // 使用DEBUG级别而不是INFO级别打印
-        if (RCLCPP_DEBUG_ONCE) {
+        // 使用静态变量控制打印频率
+        static bool debug_printed = false;
+        if (!debug_printed) {
+            debug_printed = true;
             std::cout << "Status Word: 0x" << std::hex << status_word_ << std::dec << std::endl;
             std::cout << "  Ready to Switch On: " << ((status_word_ & 0x0001) ? "Yes" : "No") << std::endl;
             std::cout << "  Switched On: " << ((status_word_ & 0x0002) ? "Yes" : "No") << std::endl;
