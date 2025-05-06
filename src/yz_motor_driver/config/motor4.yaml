@@ -1,4 +1,4 @@
-motor1:
+motor4:
   ros__parameters:
     can_interface: "can0"
     node_id: 4

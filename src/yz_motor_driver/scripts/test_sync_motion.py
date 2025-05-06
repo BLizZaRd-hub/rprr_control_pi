@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
 from std_srvs.srv import Trigger, SetBool
 import time
-import random
 
-class MotorTester(Node):
+class SyncMotionTester(Node):
     def __init__(self):
-        super().__init__('motor_tester')
+        super().__init__('sync_motion_tester')
 
         # 创建3号和4号电机的命令发布者
         self.motor3_pub = self.create_publisher(Float32, '/motor3_cmd_deg', 10)
@@ -29,9 +27,9 @@ class MotorTester(Node):
         # 初始化电机
         self.initialize_motors()
 
-        # 创建定时器，每2秒发送一次命令
-        self.timer = self.create_timer(2.0, self.timer_callback)
-        self.position = 90.0  # 起始位置
+        # 开始测试
+        self.get_logger().info('开始同步运动测试...')
+        self.run_test()
 
     def wait_for_services(self):
         """等待所有服务可用"""
@@ -45,13 +43,8 @@ class MotorTester(Node):
         ]
 
         for client, service_name in services:
-            self.get_logger().info(f'检查服务 {service_name} 是否可用...')
-            if not client.service_is_ready():
-                self.get_logger().info(f'服务 {service_name} 尚未准备好，等待中...')
-                while not client.wait_for_service(timeout_sec=5.0):  # 增加超时时间
-                    self.get_logger().info(f'等待服务 {service_name} 可用...')
-            else:
-                self.get_logger().info(f'服务 {service_name} 已准备好')
+            while not client.wait_for_service(timeout_sec=1.0):
+                self.get_logger().info(f'等待服务 {service_name} 可用...')
 
         self.get_logger().info('所有服务已可用')
 
@@ -99,30 +92,31 @@ class MotorTester(Node):
         # 等待电机稳定
         time.sleep(1.0)
 
-    def timer_callback(self):
-        # 切换位置 90° <-> -90°
-        self.position = -90.0 if self.position > 0 else 90.0
+    def send_position(self, position):
+        """同时向两个电机发送相同的位置命令"""
+        msg = Float32()
+        msg.data = position
 
-        # 添加小的随机相位增量 (±2°)
-        phase3 = random.uniform(-2.0, 2.0)
-        phase4 = random.uniform(-2.0, 2.0)
+        # 同时发布到两个电机话题
+        self.motor3_pub.publish(msg)
+        self.motor4_pub.publish(msg)
 
-        # 发布到3号和4号电机话题
-        msg3 = Float32()
-        msg3.data = self.position + phase3
-        self.motor3_pub.publish(msg3)
+        self.get_logger().info(f'同时发送位置命令: {position}°')
 
-        msg4 = Float32()
-        msg4.data = self.position + phase4
-        self.motor4_pub.publish(msg4)
+    def run_test(self):
+        """运行测试序列"""
+        positions = [0.0, 90.0, 0.0, -90.0, 0.0]
 
-        self.get_logger().info(f'发送位置命令: 电机3={self.position + phase3:.2f}°, 电机4={self.position + phase4:.2f}°')
+        for pos in positions:
+            self.send_position(pos)
+            time.sleep(2.0)  # 等待2秒让电机到达位置
+
+        # 测试完成
+        self.get_logger().info('测试完成')
 
 def main(args=None):
     rclpy.init(args=args)
-    motor_tester = MotorTester()
-    rclpy.spin(motor_tester)
-    motor_tester.destroy_node()
+    tester = SyncMotionTester()
     rclpy.shutdown()
 
 if __name__ == '__main__':
