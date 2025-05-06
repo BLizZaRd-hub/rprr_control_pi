@@ -90,4 +90,11 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+# 安装Python脚本
+install(DIRECTORY
+  scripts/
+  DESTINATION lib/${PROJECT_NAME}
+  USE_SOURCE_PERMISSIONS
+)
+
 ament_package()
