@@ -144,10 +144,22 @@ class Motors34Tester(Node):
         self.start_test_sequence()
 
     def motor3_pos_callback(self, msg):
+        # 记录上一次位置，用于检测运动
+        old_pos = self.motor3_current_pos
         self.motor3_current_pos = msg.data
 
+        # 检测位置变化
+        if abs(self.motor3_current_pos - old_pos) > 0.1:
+            self.get_logger().info(f'电机3位置变化: {old_pos:.2f}° -> {self.motor3_current_pos:.2f}°')
+
     def motor4_pos_callback(self, msg):
+        # 记录上一次位置，用于检测运动
+        old_pos = self.motor4_current_pos
         self.motor4_current_pos = msg.data
+
+        # 检测位置变化
+        if abs(self.motor4_current_pos - old_pos) > 0.1:
+            self.get_logger().info(f'电机4位置变化: {old_pos:.2f}° -> {self.motor4_current_pos:.2f}°')
 
     def start_test_sequence(self):
         # 开始测试 - 先相对当前位置正转90°
@@ -163,12 +175,14 @@ class Motors34Tester(Node):
         self.send_position_command(target_pos_3, target_pos_4)
 
     def motor3_reached_callback(self, msg):
+        self.get_logger().info(f'收到电机3位置到达消息: {msg.data}')
         if msg.data:
             self.get_logger().info('电机3到达目标位置')
             self.motor3_reached = True
             self.check_both_motors_reached()
 
     def motor4_reached_callback(self, msg):
+        self.get_logger().info(f'收到电机4位置到达消息: {msg.data}')
         if msg.data:
             self.get_logger().info('电机4到达目标位置')
             self.motor4_reached = True
@@ -182,6 +196,11 @@ class Motors34Tester(Node):
             # 重置状态
             self.motor3_reached = False
             self.motor4_reached = False
+
+            # 取消超时定时器（如果存在）
+            if hasattr(self, 'timeout_timer'):
+                self.destroy_timer(self.timeout_timer)
+                delattr(self, 'timeout_timer')
 
             # 等待一段时间，确保电机状态稳定
             self.create_timer(2.0, self.next_movement)
@@ -221,6 +240,10 @@ class Motors34Tester(Node):
         if position_4 is None:
             position_4 = position_3
 
+        # 重置到位状态
+        self.motor3_reached = False
+        self.motor4_reached = False
+
         # 创建位置命令消息并发送到电机3
         msg3 = Float32()
         msg3.data = float(position_3)
@@ -232,6 +255,27 @@ class Motors34Tester(Node):
         self.motor4_pub.publish(msg4)
 
         self.get_logger().info(f'发送位置命令 - 电机3: {position_3}°, 电机4: {position_4}°')
+
+        # 设置超时定时器，如果10秒内没有收到位置到达消息，则继续执行
+        self.timeout_timer = self.create_timer(10.0, self.movement_timeout_callback)
+
+    def movement_timeout_callback(self):
+        # 只执行一次
+        self.destroy_timer(self.timeout_timer)
+
+        # 检查是否已经收到位置到达消息
+        if not self.motor3_reached or not self.motor4_reached:
+            self.get_logger().warn('位置到达超时！强制继续执行...')
+
+            # 记录当前状态
+            self.get_logger().info(f'电机3到达状态: {self.motor3_reached}, 电机4到达状态: {self.motor4_reached}')
+
+            # 强制设置到位状态
+            self.motor3_reached = True
+            self.motor4_reached = True
+
+            # 继续执行下一步
+            self.next_movement()
 
 
 def main(args=None):
