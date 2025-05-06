@@ -501,11 +501,4 @@ bool CANopenDriver::readSDO<int32_t>(uint16_t index, uint8_t subindex, int32_t& 
     return result;
 }
 
-// 通用模板实现，用于处理未特化的类型
-template<typename T>
-bool CANopenDriver::readSDO(uint16_t index, uint8_t subindex, T& value, int timeout_ms, int retries) {
-    std::cerr << "Generic readSDO not implemented for this type" << std::endl;
-    return false;
-}
-
 } // namespace yz_motor_driver

@@ -31,7 +31,10 @@ public:
 
     // SDO通信（读写对象字典）
     template<typename T>
-    bool readSDO(uint16_t index, uint8_t subindex, T& value, int timeout_ms = 100, int retries = 3);
+    bool readSDO(uint16_t index, uint8_t subindex, T& value, int timeout_ms = 100, int retries = 3) {
+        std::cerr << "Generic readSDO not implemented for this type" << std::endl;
+        return false;
+    }
 
     template<typename T>
     bool writeSDO(uint16_t index, uint8_t subindex, const T& value);
@@ -69,10 +72,6 @@ private:
     uint32_t calculateRPDOCobId(uint8_t pdo_num) const;
     uint32_t calculateTPDOCobId(uint8_t pdo_num) const;
 };
-
-// 模板函数声明
-template<typename T>
-bool CANopenDriver::readSDO(uint16_t index, uint8_t subindex, T& value, int timeout_ms, int retries);
 
 // 特化声明
 template<>
