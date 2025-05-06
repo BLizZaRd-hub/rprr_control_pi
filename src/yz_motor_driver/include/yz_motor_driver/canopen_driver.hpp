@@ -70,13 +70,22 @@ private:
     uint32_t calculateTPDOCobId(uint8_t pdo_num) const;
 };
 
-// 模板函数实现
+// 模板函数声明
 template<typename T>
-bool CANopenDriver::readSDO(uint16_t index, uint8_t subindex, T& value, int timeout_ms, int retries) {
-    // 默认实现，将在特化版本中提供具体实现
-    std::cerr << "Generic readSDO not implemented for this type" << std::endl;
-    return false;
-}
+bool CANopenDriver::readSDO(uint16_t index, uint8_t subindex, T& value, int timeout_ms, int retries);
+
+// 特化声明
+template<>
+bool CANopenDriver::readSDO<uint8_t>(uint16_t index, uint8_t subindex, uint8_t& value, int timeout_ms, int retries);
+
+template<>
+bool CANopenDriver::readSDO<uint16_t>(uint16_t index, uint8_t subindex, uint16_t& value, int timeout_ms, int retries);
+
+template<>
+bool CANopenDriver::readSDO<uint32_t>(uint16_t index, uint8_t subindex, uint32_t& value, int timeout_ms, int retries);
+
+template<>
+bool CANopenDriver::readSDO<int32_t>(uint16_t index, uint8_t subindex, int32_t& value, int timeout_ms, int retries);
 
 template<typename T>
 bool CANopenDriver::writeSDO(uint16_t index, uint8_t subindex, const T& value) {
