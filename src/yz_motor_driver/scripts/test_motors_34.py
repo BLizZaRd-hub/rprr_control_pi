@@ -37,7 +37,10 @@ class Motors34Tester(Node):
         self.motor4_reached = False
         self.motor3_current_pos = 0.0
         self.motor4_current_pos = 0.0
-        self.test_stage = 0  # 0: 初始化, 1: 正转90°, 2: 反转90°, 3: 完成
+        self.test_stage = 0  # 0: 初始化, 1: 正转90°, 2: 反转90°
+        self.motor3_ready = False
+        self.motor4_ready = False
+        self.test_started = False
 
         # 创建定时器，用于初始化
         self.create_timer(1.0, self.init_timer_callback)
@@ -113,13 +116,21 @@ class Motors34Tester(Node):
                 else:
                     self.motor4_ready = True
 
-                if hasattr(self, 'motor3_ready') and hasattr(self, 'motor4_ready'):
+                if self.motor3_ready and self.motor4_ready and not self.test_started:
+                    self.test_started = True
                     self.get_logger().info('两个电机都已准备就绪，开始测试序列')
-                    self.start_test_sequence()
+                    # 等待一段时间，确保电机状态稳定
+                    self.create_timer(2.0, self.delayed_start_test_sequence)
             else:
                 self.get_logger().error(f'电机{motor_id}使能失败: {response.message}')
         except Exception as e:
             self.get_logger().error(f'电机{motor_id}使能调用异常: {str(e)}')
+
+    def delayed_start_test_sequence(self):
+        # 只执行一次
+        self.destroy_timer(self.delayed_start_test_sequence)
+        # 开始测试序列
+        self.start_test_sequence()
 
     def motor3_pos_callback(self, msg):
         self.motor3_current_pos = msg.data
@@ -161,23 +172,38 @@ class Motors34Tester(Node):
             self.motor3_reached = False
             self.motor4_reached = False
 
-            # 根据当前测试阶段执行下一步
-            if self.test_stage == 1:
-                # 完成正转90°，现在反转90°
-                self.test_stage = 2
-                self.get_logger().info(f'开始下一阶段: 相对当前位置反转90°')
-                self.get_logger().info(f'当前位置 - 电机3: {self.motor3_current_pos}°, 电机4: {self.motor4_current_pos}°')
+            # 等待一段时间，确保电机状态稳定
+            self.create_timer(2.0, self.next_movement)
 
-                # 计算目标位置 (当前位置 - 90°)
-                target_pos_3 = self.motor3_current_pos - 90.0
-                target_pos_4 = self.motor4_current_pos - 90.0
+    def next_movement(self):
+        # 只执行一次
+        self.destroy_timer(self.next_movement)
 
-                self.get_logger().info(f'目标位置 - 电机3: {target_pos_3}°, 电机4: {target_pos_4}°')
-                self.send_position_command(target_pos_3, target_pos_4)
-            elif self.test_stage == 2:
-                # 完成反转90°，测试结束
-                self.test_stage = 3
-                self.get_logger().info('测试序列完成')
+        # 根据当前测试阶段执行下一步
+        if self.test_stage == 1:
+            # 完成正转90°，现在反转90°
+            self.test_stage = 2
+            self.get_logger().info(f'开始下一阶段: 相对当前位置反转90°')
+            self.get_logger().info(f'当前位置 - 电机3: {self.motor3_current_pos}°, 电机4: {self.motor4_current_pos}°')
+
+            # 计算目标位置 (当前位置 - 90°)
+            target_pos_3 = self.motor3_current_pos - 90.0
+            target_pos_4 = self.motor4_current_pos - 90.0
+
+            self.get_logger().info(f'目标位置 - 电机3: {target_pos_3}°, 电机4: {target_pos_4}°')
+            self.send_position_command(target_pos_3, target_pos_4)
+        elif self.test_stage == 2:
+            # 完成反转90°，回到正转阶段，循环执行
+            self.test_stage = 1
+            self.get_logger().info(f'开始下一循环: 相对当前位置正转90°')
+            self.get_logger().info(f'当前位置 - 电机3: {self.motor3_current_pos}°, 电机4: {self.motor4_current_pos}°')
+
+            # 计算目标位置 (当前位置 + 90°)
+            target_pos_3 = self.motor3_current_pos + 90.0
+            target_pos_4 = self.motor4_current_pos + 90.0
+
+            self.get_logger().info(f'目标位置 - 电机3: {target_pos_3}°, 电机4: {target_pos_4}°')
+            self.send_position_command(target_pos_3, target_pos_4)
 
     def send_position_command(self, position_3, position_4=None):
         # 如果只提供一个位置，两个电机使用相同的位置
