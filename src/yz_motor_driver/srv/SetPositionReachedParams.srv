@@ -1,6 +1,6 @@
 # 请求
 uint32 position_error_threshold  # 位置误差阈值（脉冲）
-uint32 stable_cycles_required    # 需要稳定的周期数
+uint32 stable_cycles_required    # 稳定周期数
 uint32 timeout_ms                # 超时时间（毫秒）
 ---
 # 响应

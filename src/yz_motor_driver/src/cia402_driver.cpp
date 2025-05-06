@@ -530,7 +530,8 @@ void CiA402Driver::handleTPDO(const std::vector<uint8_t>& data) {
                     int32_t target = command_queue_.front().target_position;
                     int32_t error = std::abs(actual_position - target);
                     
-                    if (error <= position_error_threshold_) {
+                    // 修复符号比较警告
+                    if (static_cast<uint32_t>(error) <= position_error_threshold_) {
                         stable_cycle_count_++;
                         
                         if (stable_cycle_count_ >= stable_cycles_required_) {

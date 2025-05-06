@@ -58,6 +58,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 # 确保依赖关系正确
 ament_export_dependencies(rosidl_default_runtime)
 
+# 添加以下行，确保当前包可以使用自己生成的接口
+rosidl_target_interfaces(yz_motor_node ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
 # 安装目标
 install(TARGETS
   canopen_driver
