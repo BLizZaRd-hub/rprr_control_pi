@@ -6,7 +6,7 @@
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/bool.hpp>
-#include <std_msgs/msg/uint16.hpp>  // 添加 UInt16 消息类型
+#include <std_msgs/msg/u_int16.hpp>  // 修正为正确的头文件名
 #include <std_srvs/srv/trigger.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 
