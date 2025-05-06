@@ -441,4 +441,175 @@ bool CiA402Driver::clearNewSetpointBit() {
     return result;
 }
 
+std::future<void> CiA402Driver::moveToPositionAsync(int32_t position, bool absolute, bool immediate) {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    
+    MotionCommand cmd;
+    cmd.target_position = position;
+    cmd.absolute = absolute;
+    cmd.immediate = immediate;
+    
+    std::future<void> future = cmd.promise.get_future();
+    
+    // 设置超时
+    setupTimeoutDetection(cmd);
+    
+    // 添加到队列
+    command_queue_.push(std::move(cmd));
+    
+    // 如果当前空闲，立即处理
+    if (motion_state_ == MotionState::IDLE) {
+        processNextCommand();
+    }
+    
+    return future;
+}
+
+std::future<void> CiA402Driver::moveToPositionDegAsync(float position_deg) {
+    int32_t position = static_cast<int32_t>(position_deg * encoder_resolution_ / 360.0);
+    return moveToPositionAsync(position);
+}
+
+std::future<void> CiA402Driver::moveRelativeDegAsync(float delta_deg) {
+    int32_t delta_position = static_cast<int32_t>(delta_deg * encoder_resolution_ / 360.0);
+    return moveToPositionAsync(delta_position, false);
+}
+
+void CiA402Driver::setPositionReachedParams(uint32_t position_error_threshold, 
+                                          uint32_t stable_cycles_required,
+                                          std::chrono::milliseconds timeout_ms) {
+    position_error_threshold_ = position_error_threshold;
+    stable_cycles_required_ = stable_cycles_required;
+    timeout_duration_ = timeout_ms;
+}
+
+MotionState CiA402Driver::getMotionState() const {
+    return motion_state_;
+}
+
+void CiA402Driver::cancelCurrentMotion() {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    
+    if (motion_state_ == MotionState::BUSY) {
+        // 发送快速停止命令
+        control_word_ |= (1 << 8);  // 设置Bit 8 (Quick Stop)
+        canopen_->writeSDO<uint16_t>(0x6040, 0, control_word_);
+        
+        // 清空队列，拒绝所有等待的promise
+        while (!command_queue_.empty()) {
+            auto& cmd = command_queue_.front();
+            cmd.promise.set_exception(std::make_exception_ptr(
+                std::runtime_error("Motion cancelled")));
+            command_queue_.pop();
+        }
+        
+        motion_state_ = MotionState::IDLE;
+    }
+}
+
+void CiA402Driver::handleTPDO(const std::vector<uint8_t>& data) {
+    // 假设TPDO1包含状态字(2字节)和实际位置(4字节)
+    if (data.size() >= 6) {
+        // 解析状态字
+        uint16_t status = data[0] | (data[1] << 8);
+        
+        // 解析实际位置
+        int32_t actual_position = data[2] | (data[3] << 8) | 
+                                 (data[4] << 16) | (data[5] << 24);
+        
+        // 更新内部状态
+        status_word_ = status;
+        
+        // 如果在BUSY状态，检查是否到位
+        if (motion_state_ == MotionState::BUSY) {
+            bool target_reached = (status & (1 << 10)) != 0;
+            
+            if (target_reached) {
+                // 检查位置误差
+                if (!command_queue_.empty()) {
+                    int32_t target = command_queue_.front().target_position;
+                    int32_t error = std::abs(actual_position - target);
+                    
+                    if (error <= position_error_threshold_) {
+                        stable_cycle_count_++;
+                        
+                        if (stable_cycle_count_ >= stable_cycles_required_) {
+                            // 满足到位条件
+                            motion_state_ = MotionState::REACHED;
+                            
+                            // 完成当前命令
+                            auto cmd = std::move(command_queue_.front());
+                            command_queue_.pop();
+                            cmd.promise.set_value();
+                            
+                            // 重置计数器
+                            stable_cycle_count_ = 0;
+                            
+                            // 处理下一个命令
+                            if (!command_queue_.empty()) {
+                                processNextCommand();
+                            } else {
+                                motion_state_ = MotionState::IDLE;
+                            }
+                        }
+                    } else {
+                        // 位置误差过大，重置计数器
+                        stable_cycle_count_ = 0;
+                    }
+                }
+            } else {
+                // 目标未到达，重置计数器
+                stable_cycle_count_ = 0;
+            }
+        }
+    }
+}
+
+void CiA402Driver::processNextCommand() {
+    if (command_queue_.empty() || motion_state_ != MotionState::IDLE) {
+        return;
+    }
+    
+    auto& cmd = command_queue_.front();
+    
+    // 设置目标位置
+    if (!setTargetPosition(cmd.target_position, cmd.absolute, cmd.immediate)) {
+        // 设置失败，拒绝promise
+        cmd.promise.set_exception(std::make_exception_ptr(
+            std::runtime_error("Failed to set target position")));
+        command_queue_.pop();
+        return;
+    }
+    
+    // 更新状态为BUSY
+    motion_state_ = MotionState::BUSY;
+    stable_cycle_count_ = 0;
+}
+
+void CiA402Driver::setupTimeoutDetection(MotionCommand& cmd) {
+    // 计算预期完成时间
+    uint32_t profile_velocity;
+    if (canopen_->readSDO<uint32_t>(0x6081, 0, profile_velocity)) {
+        if (profile_velocity > 0) {
+            // 简单估算：位置变化量/速度 + 安全余量
+            int32_t current_pos = getCurrentPosition();
+            int32_t delta = std::abs(cmd.target_position - current_pos);
+            
+            // 转换为时间（毫秒）
+            auto estimated_time = std::chrono::milliseconds(
+                static_cast<int64_t>(1000.0 * delta / profile_velocity * 1.5));  // 1.5倍安全系数
+            
+            // 设置截止时间
+            cmd.deadline = std::chrono::steady_clock::now() + 
+                          std::max(estimated_time, timeout_duration_);
+        } else {
+            // 使用默认超时
+            cmd.deadline = std::chrono::steady_clock::now() + timeout_duration_;
+        }
+    } else {
+        // 读取失败，使用默认超时
+        cmd.deadline = std::chrono::steady_clock::now() + timeout_duration_;
+    }
+}
+
 } // namespace yz_motor_driver

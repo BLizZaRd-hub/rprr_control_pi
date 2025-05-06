@@ -10,6 +10,7 @@
 #include <std_srvs/srv/set_bool.hpp>
 #include <std_srvs/srv/empty.hpp>
 #include <memory>
+#include <future>
 
 namespace yz_motor_driver {
 
@@ -44,6 +45,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::UInt16>::SharedPtr status_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr position_deg_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr velocity_rpm_pub_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr position_reached_pub_;
     
     // 订阅者
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr position_sub_;
@@ -64,6 +66,7 @@ private:
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr velocity_mode_srv_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_velocity_srv_;  // 添加缺失的服务
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_acceleration_srv_;  // 添加缺失的服务
+    rclcpp::Service<yz_motor_driver::srv::SetPositionReachedParams>::SharedPtr set_position_reached_params_srv_;
     
     // 回调函数
     void statusTimerCallback();
@@ -94,6 +97,9 @@ private:
                             std::shared_ptr<std_srvs::srv::SetBool::Response> response);
     void setAccelerationCallback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,  // 添加缺失的回调
                                 std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+    void setPositionReachedParamsCallback(
+        const std::shared_ptr<yz_motor_driver::srv::SetPositionReachedParams::Request> request,
+        std::shared_ptr<yz_motor_driver::srv::SetPositionReachedParams::Response> response);
     
     // 辅助函数
     int32_t angleToPosition(float angle);

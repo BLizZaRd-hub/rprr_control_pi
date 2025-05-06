@@ -15,6 +15,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 # 移除不需要的依赖
 # find_package(example_interfaces REQUIRED)
 
@@ -47,6 +48,15 @@ target_link_libraries(sync_master pthread rt)
 add_executable(sync_master_node src/sync_master_node.cpp)
 target_link_libraries(sync_master_node sync_master)
 ament_target_dependencies(sync_master_node rclcpp std_msgs std_srvs)
+
+# 生成服务接口
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/SetPositionReachedParams.srv"
+  DEPENDENCIES std_msgs
+)
+
+# 确保依赖关系正确
+ament_export_dependencies(rosidl_default_runtime)
 
 # 安装目标
 install(TARGETS

@@ -4,6 +4,10 @@
 #include "yz_motor_driver/canopen_driver.hpp"
 #include <memory>
 #include <chrono>
+#include <functional>
+#include <future>
+#include <queue>
+#include <mutex>
 
 namespace yz_motor_driver {
 
@@ -31,6 +35,24 @@ enum class OperationMode {
     CYCLIC_SYNC_POSITION = 8,
     CYCLIC_SYNC_VELOCITY = 9,
     CYCLIC_SYNC_TORQUE = 10
+};
+
+// 添加电机移动状态枚举
+enum class MotionState {
+    IDLE,
+    BUSY,
+    REACHED,
+    TIMEOUT,
+    FAULT
+};
+
+// 添加命令结构体
+struct MotionCommand {
+    int32_t target_position;
+    bool absolute;
+    bool immediate;
+    std::promise<void> promise;
+    std::chrono::steady_clock::time_point deadline;
 };
 
 class CiA402Driver {
@@ -85,6 +107,22 @@ public:
     // 添加清除New Setpoint位的方法
     bool clearNewSetpointBit();
 
+    // 添加以下新方法
+    std::future<void> moveToPositionAsync(int32_t position, bool absolute = true, bool immediate = true);
+    std::future<void> moveToPositionDegAsync(float position_deg);
+    std::future<void> moveRelativeDegAsync(float delta_deg);
+    
+    // 设置到位检测参数
+    void setPositionReachedParams(uint32_t position_error_threshold, 
+                                 uint32_t stable_cycles_required,
+                                 std::chrono::milliseconds timeout_ms);
+    
+    // 获取当前移动状态
+    MotionState getMotionState() const;
+    
+    // 取消当前移动
+    void cancelCurrentMotion();
+
 private:
     std::shared_ptr<CANopenDriver> canopen_;
     uint16_t control_word_ = 0;
@@ -99,6 +137,28 @@ private:
 
     // 更新状态字
     bool updateStatusWord();
+
+    // 添加以下新成员
+    MotionState motion_state_ = MotionState::IDLE;
+    std::queue<MotionCommand> command_queue_;
+    std::mutex queue_mutex_;
+    
+    uint32_t position_error_threshold_ = 5;  // 默认5个脉冲的误差阈值
+    uint32_t stable_cycles_required_ = 3;    // 默认需要3个周期稳定
+    uint32_t stable_cycle_count_ = 0;        // 当前稳定周期计数
+    std::chrono::milliseconds timeout_duration_{5000};  // 默认5秒超时
+    
+    // 处理TPDO回调
+    void handleTPDO(const std::vector<uint8_t>& data);
+    
+    // 处理命令队列
+    void processNextCommand();
+    
+    // 检查到位状态
+    void checkPositionReached();
+    
+    // 设置超时检测
+    void setupTimeoutDetection(MotionCommand& cmd);
 };
 
 } // namespace yz_motor_driver

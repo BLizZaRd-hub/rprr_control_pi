@@ -33,9 +33,11 @@ def generate_launch_description():
                 ('/position_deg', '/motor3_pos_deg'),
                 ('/status', '/motor3_status'),
                 # 添加服务重映射
-		        ('/enable', '/motor3/enable'),
-		        ('/disable', '/motor3/disable'),
-		        ('/position_mode', '/motor3/position_mode'),
+                ('/enable', '/motor3/enable'),
+                ('/disable', '/motor3/disable'),
+                ('/position_mode', '/motor3/position_mode'),
+                # 添加位置到达话题重映射
+                ('/position_reached', '/motor3/position_reached'),
             ],
         ),
 
@@ -50,10 +52,12 @@ def generate_launch_description():
                 ('/position_deg_cmd', '/motor4_cmd_deg'),
                 ('/position_deg', '/motor4_pos_deg'),
                 ('/status', '/motor4_status'),
-			    # 添加服务重映射
-		        ('/enable', '/motor4/enable'),
-        		('/disable', '/motor4/disable'),
-		        ('/position_mode', '/motor4/position_mode'),
-    ],
+                # 添加服务重映射
+                ('/enable', '/motor4/enable'),
+                ('/disable', '/motor4/disable'),
+                ('/position_mode', '/motor4/position_mode'),
+                # 添加位置到达话题重映射
+                ('/position_reached', '/motor4/position_reached'),
+            ],
         ),
     ])

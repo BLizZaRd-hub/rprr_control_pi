@@ -64,6 +64,8 @@ def generate_launch_description():
                 ('/position_deg_cmd', '/motor3_cmd_deg'),
                 ('/position_deg', '/motor3_pos_deg'),
                 ('/status', '/motor3_status'),
+                # 添加位置到达话题重映射
+                ('/position_reached', '/motor3/position_reached'),
             ],
         ),
         
@@ -78,6 +80,8 @@ def generate_launch_description():
                 ('/position_deg_cmd', '/motor4_cmd_deg'),
                 ('/position_deg', '/motor4_pos_deg'),
                 ('/status', '/motor4_status'),
+                # 添加位置到达话题重映射
+                ('/position_reached', '/motor4/position_reached'),
             ],
         ),
     ])

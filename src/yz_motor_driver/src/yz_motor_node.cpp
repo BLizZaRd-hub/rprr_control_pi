@@ -75,6 +75,26 @@ YZMotorNode::YZMotorNode()
     velocity_rpm_pub_ = this->create_publisher<std_msgs::msg::Float32>("velocity_rpm", 10);
     status_pub_ = this->create_publisher<std_msgs::msg::UInt16>("status", 10);
     
+    // 添加位置到达发布者
+    position_reached_pub_ = this->create_publisher<std_msgs::msg::Bool>(
+        "position_reached", 10);
+        
+    // 添加到位检测参数服务
+    set_position_reached_params_srv_ = this->create_service<yz_motor_driver::srv::SetPositionReachedParams>(
+        "set_position_reached_params",
+        std::bind(&YZMotorNode::setPositionReachedParamsCallback, this,
+                  std::placeholders::_1, std::placeholders::_2));
+                  
+    // 如果使用TPDO，注册回调
+    if (cia402_driver_) {
+        canopen_driver_->registerPDOCallback(1, 
+            [this](const std::vector<uint8_t>& data) {
+                if (cia402_driver_) {
+                    cia402_driver_->handleTPDO(data);
+                }
+            });
+    }
+    
     // 创建订阅者
     position_cmd_sub_ = this->create_subscription<std_msgs::msg::Int32>(
         "position_cmd", 10,
@@ -233,7 +253,25 @@ void YZMotorNode::positionCmdCallback(const std_msgs::msg::Int32::SharedPtr msg)
         return;
     }
     
-    cia402_driver_->setTargetPositionPDO(msg->data);
+    // 使用异步API
+    cia402_driver_->moveToPositionAsync(msg->data)
+        .then([this](std::future<void> fut) {
+            try {
+                fut.get();
+                
+                // 发布到位消息
+                auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
+                reached_msg->data = true;
+                position_reached_pub_->publish(std::move(reached_msg));
+            } catch (const std::exception& e) {
+                RCLCPP_ERROR(this->get_logger(), "Motion failed: %s", e.what());
+                
+                // 发布未到位消息
+                auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
+                reached_msg->data = false;
+                position_reached_pub_->publish(std::move(reached_msg));
+            }
+        });
 }
 
 void YZMotorNode::positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr msg) {
@@ -244,12 +282,28 @@ void YZMotorNode::positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr
         return;
     }
     
-    int32_t position = degreesToEncoder(msg->data);
-    RCLCPP_INFO(this->get_logger(), "Converted to encoder position: %d", position);
-    
-    // 修改这里：将第二个参数设为false表示相对位置模式
-    bool result = cia402_driver_->setTargetPositionPDO(position, false);
-    RCLCPP_INFO(this->get_logger(), "setTargetPositionPDO result: %s", result ? "success" : "failed");
+    // 使用异步API
+    cia402_driver_->moveToPositionDegAsync(msg->data)
+        .then([this](std::future<void> fut) {
+            try {
+                // 等待完成
+                fut.get();
+                
+                // 发布到位消息
+                auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
+                reached_msg->data = true;
+                position_reached_pub_->publish(std::move(reached_msg));
+                
+                RCLCPP_INFO(this->get_logger(), "Position reached");
+            } catch (const std::exception& e) {
+                RCLCPP_ERROR(this->get_logger(), "Motion failed: %s", e.what());
+                
+                // 发布未到位消息
+                auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
+                reached_msg->data = false;
+                position_reached_pub_->publish(std::move(reached_msg));
+            }
+        });
 }
 
 void YZMotorNode::velocityCmdCallback(const std_msgs::msg::Int32::SharedPtr msg) {
@@ -383,6 +437,25 @@ void YZMotorNode::setAccelerationCallback(
     
     RCLCPP_INFO(this->get_logger(), "Set profile acceleration to %d: %s", 
                 new_acceleration, result ? "success" : "failed");
+}
+
+void YZMotorNode::setPositionReachedParamsCallback(
+    const std::shared_ptr<yz_motor_driver::srv::SetPositionReachedParams::Request> request,
+    std::shared_ptr<yz_motor_driver::srv::SetPositionReachedParams::Response> response) {
+    
+    if (!cia402_driver_) {
+        response->success = false;
+        response->message = "Driver not initialized";
+        return;
+    }
+    
+    cia402_driver_->setPositionReachedParams(
+        request->position_error_threshold,
+        request->stable_cycles_required,
+        std::chrono::milliseconds(request->timeout_ms));
+    
+    response->success = true;
+    response->message = "Parameters updated successfully";
 }
 
 } // namespace yz_motor_driver
