@@ -29,7 +29,7 @@ public:
 
     // SDO通信（读写对象字典）
     template<typename T>
-    bool readSDO(uint16_t index, uint8_t subindex, T& value);
+    bool readSDO(uint16_t index, uint8_t subindex, T& value, int timeout_ms = 100, int retries = 3);
 
     template<typename T>
     bool writeSDO(uint16_t index, uint8_t subindex, const T& value);
@@ -70,17 +70,10 @@ private:
 
 // 模板函数实现
 template<typename T>
-bool CANopenDriver::readSDO(uint16_t index, uint8_t subindex, T& value) {
-    // 模拟读取SDO
-    // 在实际实现中，这里应该发送SDO读取请求并等待响应
-    
-    // 为了避免未使用参数的警告
-    (void)index;
-    (void)subindex;
-    (void)value;
-    
-    // 返回成功
-    return true;
+bool CANopenDriver::readSDO(uint16_t index, uint8_t subindex, T& value, int timeout_ms, int retries) {
+    // 默认实现，将在特化版本中提供具体实现
+    std::cerr << "Generic readSDO not implemented for this type" << std::endl;
+    return false;
 }
 
 template<typename T>

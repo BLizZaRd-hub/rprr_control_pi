@@ -7,6 +7,9 @@
 #include <unistd.h>
 #include <string.h>
 #include <iostream>
+#include <sys/select.h>
+#include <iomanip>
+#include <cmath>
 
 namespace yz_motor_driver {
 
@@ -188,42 +191,280 @@ uint32_t CANopenDriver::calculateTPDOCobId(uint8_t pdo_num) const {
 
 // 特化模板函数实现
 template<>
-bool CANopenDriver::readSDO<uint8_t>(uint16_t index, uint8_t subindex, uint8_t& value) {
-    // 实际实现中需要发送SDO请求并等待响应
-    // 这里简化处理，实际应用需要完善
-    
-    // 标记参数为已使用，避免警告
-    (void)index;
-    (void)subindex;
-    (void)value;
-    
-    return true;
+bool CANopenDriver::readSDO<uint8_t>(uint16_t index, uint8_t subindex, uint8_t& value, int timeout_ms, int retries) {
+    // SDO读取请求 (0x40 = 读取命令)
+    std::vector<uint8_t> request = {0x40,
+                                   static_cast<uint8_t>(index & 0xFF),
+                                   static_cast<uint8_t>((index >> 8) & 0xFF),
+                                   subindex, 0, 0, 0, 0};
+
+    // 发送SDO请求
+    uint32_t cob_id_tx = 0x600 + node_id_;  // SDO客户端到服务器
+    uint32_t cob_id_rx = 0x580 + node_id_;  // SDO服务器到客户端
+
+    // 清空接收缓冲区
+    struct can_frame frame;
+    while (recv(can_socket_, &frame, sizeof(frame), MSG_DONTWAIT) > 0) {
+        // 丢弃所有待处理的帧
+    }
+
+    // 重试循环
+    for (int attempt = 0; attempt < retries; ++attempt) {
+        // 发送请求
+        if (!sendFrame(cob_id_tx, request)) {
+            std::cerr << "Failed to send SDO read request, attempt " << (attempt + 1) << std::endl;
+            continue;
+        }
+
+        // 等待响应
+        struct timeval tv;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(can_socket_, &readfds);
+
+        int select_result = select(can_socket_ + 1, &readfds, NULL, NULL, &tv);
+
+        if (select_result < 0) {
+            std::cerr << "Select error: " << strerror(errno) << std::endl;
+            continue;
+        } else if (select_result == 0) {
+            std::cerr << "SDO read timeout, attempt " << (attempt + 1) << std::endl;
+            continue;
+        }
+
+        // 读取响应
+        ssize_t nbytes = read(can_socket_, &frame, sizeof(frame));
+        if (nbytes < static_cast<ssize_t>(sizeof(struct can_frame))) {
+            std::cerr << "Incomplete CAN frame received" << std::endl;
+            continue;
+        }
+
+        // 检查是否是我们期望的响应
+        if ((frame.can_id & CAN_EFF_MASK) != cob_id_rx) {
+            // 不是我们期望的响应，继续等待
+            attempt--;  // 不计入重试次数
+            continue;
+        }
+
+        // 检查命令字节 (0x4F = 1字节数据的成功响应)
+        if (frame.data[0] == 0x4F) {
+            // 检查索引和子索引是否匹配
+            if (frame.data[1] == (index & 0xFF) &&
+                frame.data[2] == ((index >> 8) & 0xFF) &&
+                frame.data[3] == subindex) {
+
+                // 解析数据
+                value = frame.data[4];
+
+                std::cout << "SDO read success: 0x" << std::hex << index << ":"
+                          << static_cast<int>(subindex) << " = 0x"
+                          << static_cast<int>(value) << std::dec << std::endl;
+
+                return true;
+            }
+        } else if (frame.data[0] == 0x80) {
+            // 错误响应
+            uint32_t error_code = static_cast<uint32_t>(frame.data[4]) |
+                                 (static_cast<uint32_t>(frame.data[5]) << 8) |
+                                 (static_cast<uint32_t>(frame.data[6]) << 16) |
+                                 (static_cast<uint32_t>(frame.data[7]) << 24);
+
+            std::cerr << "SDO read error: 0x" << std::hex << error_code << std::dec << std::endl;
+            return false;
+        }
+    }
+
+    std::cerr << "SDO read failed after " << retries << " attempts" << std::endl;
+    return false;
 }
 
 template<>
-bool CANopenDriver::readSDO<uint16_t>(uint16_t index, uint8_t subindex, uint16_t& value) {
-    // 实际实现中需要发送SDO请求并等待响应
-    // 这里简化处理，实际应用需要完善
-    
-    // 标记参数为已使用，避免警告
-    (void)index;
-    (void)subindex;
-    (void)value;
-    
-    return true;
+bool CANopenDriver::readSDO<uint16_t>(uint16_t index, uint8_t subindex, uint16_t& value, int timeout_ms, int retries) {
+    // SDO读取请求 (0x40 = 读取命令)
+    std::vector<uint8_t> request = {0x40,
+                                   static_cast<uint8_t>(index & 0xFF),
+                                   static_cast<uint8_t>((index >> 8) & 0xFF),
+                                   subindex, 0, 0, 0, 0};
+
+    // 发送SDO请求
+    uint32_t cob_id_tx = 0x600 + node_id_;  // SDO客户端到服务器
+    uint32_t cob_id_rx = 0x580 + node_id_;  // SDO服务器到客户端
+
+    // 清空接收缓冲区
+    struct can_frame frame;
+    while (recv(can_socket_, &frame, sizeof(frame), MSG_DONTWAIT) > 0) {
+        // 丢弃所有待处理的帧
+    }
+
+    // 重试循环
+    for (int attempt = 0; attempt < retries; ++attempt) {
+        // 发送请求
+        if (!sendFrame(cob_id_tx, request)) {
+            std::cerr << "Failed to send SDO read request, attempt " << (attempt + 1) << std::endl;
+            continue;
+        }
+
+        // 等待响应
+        struct timeval tv;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(can_socket_, &readfds);
+
+        int select_result = select(can_socket_ + 1, &readfds, NULL, NULL, &tv);
+
+        if (select_result < 0) {
+            std::cerr << "Select error: " << strerror(errno) << std::endl;
+            continue;
+        } else if (select_result == 0) {
+            std::cerr << "SDO read timeout, attempt " << (attempt + 1) << std::endl;
+            continue;
+        }
+
+        // 读取响应
+        ssize_t nbytes = read(can_socket_, &frame, sizeof(frame));
+        if (nbytes < static_cast<ssize_t>(sizeof(struct can_frame))) {
+            std::cerr << "Incomplete CAN frame received" << std::endl;
+            continue;
+        }
+
+        // 检查是否是我们期望的响应
+        if ((frame.can_id & CAN_EFF_MASK) != cob_id_rx) {
+            // 不是我们期望的响应，继续等待
+            attempt--;  // 不计入重试次数
+            continue;
+        }
+
+        // 检查命令字节 (0x4B = 2字节数据的成功响应)
+        if (frame.data[0] == 0x4B || frame.data[0] == 0x4F) {
+            // 检查索引和子索引是否匹配
+            if (frame.data[1] == (index & 0xFF) &&
+                frame.data[2] == ((index >> 8) & 0xFF) &&
+                frame.data[3] == subindex) {
+
+                // 解析数据 (小端序)
+                value = static_cast<uint16_t>(frame.data[4]) |
+                        (static_cast<uint16_t>(frame.data[5]) << 8);
+
+                std::cout << "SDO read success: 0x" << std::hex << index << ":"
+                          << static_cast<int>(subindex) << " = 0x"
+                          << value << std::dec << std::endl;
+
+                return true;
+            }
+        } else if (frame.data[0] == 0x80) {
+            // 错误响应
+            uint32_t error_code = static_cast<uint32_t>(frame.data[4]) |
+                                 (static_cast<uint32_t>(frame.data[5]) << 8) |
+                                 (static_cast<uint32_t>(frame.data[6]) << 16) |
+                                 (static_cast<uint32_t>(frame.data[7]) << 24);
+
+            std::cerr << "SDO read error: 0x" << std::hex << error_code << std::dec << std::endl;
+            return false;
+        }
+    }
+
+    std::cerr << "SDO read failed after " << retries << " attempts" << std::endl;
+    return false;
 }
 
 template<>
-bool CANopenDriver::readSDO<uint32_t>(uint16_t index, uint8_t subindex, uint32_t& value) {
-    // 实际实现中需要发送SDO请求并等待响应
-    // 这里简化处理，实际应用需要完善
-    
-    // 标记参数为已使用，避免警告
-    (void)index;
-    (void)subindex;
-    (void)value;
-    
-    return true;
+bool CANopenDriver::readSDO<uint32_t>(uint16_t index, uint8_t subindex, uint32_t& value, int timeout_ms, int retries) {
+    // SDO读取请求 (0x40 = 读取命令)
+    std::vector<uint8_t> request = {0x40,
+                                   static_cast<uint8_t>(index & 0xFF),
+                                   static_cast<uint8_t>((index >> 8) & 0xFF),
+                                   subindex, 0, 0, 0, 0};
+
+    // 发送SDO请求
+    uint32_t cob_id_tx = 0x600 + node_id_;  // SDO客户端到服务器
+    uint32_t cob_id_rx = 0x580 + node_id_;  // SDO服务器到客户端
+
+    // 清空接收缓冲区
+    struct can_frame frame;
+    while (recv(can_socket_, &frame, sizeof(frame), MSG_DONTWAIT) > 0) {
+        // 丢弃所有待处理的帧
+    }
+
+    // 重试循环
+    for (int attempt = 0; attempt < retries; ++attempt) {
+        // 发送请求
+        if (!sendFrame(cob_id_tx, request)) {
+            std::cerr << "Failed to send SDO read request, attempt " << (attempt + 1) << std::endl;
+            continue;
+        }
+
+        // 等待响应
+        struct timeval tv;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(can_socket_, &readfds);
+
+        int select_result = select(can_socket_ + 1, &readfds, NULL, NULL, &tv);
+
+        if (select_result < 0) {
+            std::cerr << "Select error: " << strerror(errno) << std::endl;
+            continue;
+        } else if (select_result == 0) {
+            std::cerr << "SDO read timeout, attempt " << (attempt + 1) << std::endl;
+            continue;
+        }
+
+        // 读取响应
+        ssize_t nbytes = read(can_socket_, &frame, sizeof(frame));
+        if (nbytes < static_cast<ssize_t>(sizeof(struct can_frame))) {
+            std::cerr << "Incomplete CAN frame received" << std::endl;
+            continue;
+        }
+
+        // 检查是否是我们期望的响应
+        if ((frame.can_id & CAN_EFF_MASK) != cob_id_rx) {
+            // 不是我们期望的响应，继续等待
+            attempt--;  // 不计入重试次数
+            continue;
+        }
+
+        // 检查命令字节 (0x43 = 4字节数据的成功响应)
+        if (frame.data[0] == 0x43 || frame.data[0] == 0x4F) {
+            // 检查索引和子索引是否匹配
+            if (frame.data[1] == (index & 0xFF) &&
+                frame.data[2] == ((index >> 8) & 0xFF) &&
+                frame.data[3] == subindex) {
+
+                // 解析数据 (小端序)
+                value = static_cast<uint32_t>(frame.data[4]) |
+                       (static_cast<uint32_t>(frame.data[5]) << 8) |
+                       (static_cast<uint32_t>(frame.data[6]) << 16) |
+                       (static_cast<uint32_t>(frame.data[7]) << 24);
+
+                std::cout << "SDO read success: 0x" << std::hex << index << ":"
+                          << static_cast<int>(subindex) << " = 0x"
+                          << value << std::dec << std::endl;
+
+                return true;
+            }
+        } else if (frame.data[0] == 0x80) {
+            // 错误响应
+            uint32_t error_code = static_cast<uint32_t>(frame.data[4]) |
+                                 (static_cast<uint32_t>(frame.data[5]) << 8) |
+                                 (static_cast<uint32_t>(frame.data[6]) << 16) |
+                                 (static_cast<uint32_t>(frame.data[7]) << 24);
+
+            std::cerr << "SDO read error: 0x" << std::hex << error_code << std::dec << std::endl;
+            return false;
+        }
+    }
+
+    std::cerr << "SDO read failed after " << retries << " attempts" << std::endl;
+    return false;
 }
 
 template<>
@@ -248,6 +489,16 @@ bool CANopenDriver::writeSDO<uint32_t>(uint16_t index, uint8_t subindex, const u
                                    static_cast<uint8_t>((value >> 16) & 0xFF), static_cast<uint8_t>((value >> 24) & 0xFF)};
     uint32_t cob_id = 0x600 + node_id_;
     return sendFrame(cob_id, request);
+}
+
+template<>
+bool CANopenDriver::readSDO<int32_t>(uint16_t index, uint8_t subindex, int32_t& value, int timeout_ms, int retries) {
+    uint32_t temp;
+    bool result = readSDO<uint32_t>(index, subindex, temp, timeout_ms, retries);
+    if (result) {
+        value = static_cast<int32_t>(temp);
+    }
+    return result;
 }
 
 } // namespace yz_motor_driver
