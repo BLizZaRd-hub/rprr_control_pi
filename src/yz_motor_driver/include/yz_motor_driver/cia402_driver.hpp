@@ -163,9 +163,6 @@ private:
     uint32_t stable_cycle_count_ = 0;        // 当前稳定周期计数
     std::chrono::milliseconds timeout_duration_{5000};  // 默认5秒超时
     
-    // 处理TPDO回调
-    void handleTPDO(const std::vector<uint8_t>& data);
-    
     // 处理命令队列
     void processNextCommand();
     
