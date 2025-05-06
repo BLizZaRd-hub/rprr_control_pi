@@ -9,6 +9,8 @@
 #include <mutex>
 #include <atomic>
 #include <unordered_map>
+#include <iostream>
+#include <iomanip>
 
 namespace yz_motor_driver {
 
