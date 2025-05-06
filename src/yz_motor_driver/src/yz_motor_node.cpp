@@ -14,24 +14,9 @@ YZMotorNode::YZMotorNode()
     this->declare_parameter("profile_velocity", 1000);  // 默认速度
     this->declare_parameter("profile_acceleration", 1000);  // 默认加速度
     
-    // 获取参数
-    can_interface_ = this->get_parameter("can_interface").as_string();
-    node_id_ = this->get_parameter("node_id").as_int();
-    position_scale_ = this->get_parameter("position_scale").as_double();
-    velocity_scale_ = this->get_parameter("velocity_scale").as_double();
-    current_profile_velocity_ = this->get_parameter("profile_velocity").as_int();
-    current_profile_acceleration_ = this->get_parameter("profile_acceleration").as_int();
-    
-    // 创建驱动实例
-    canopen_driver_ = std::make_shared<CANopenDriver>(can_interface_, static_cast<uint8_t>(node_id_));
-    if (!canopen_driver_->init()) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to initialize CANopen driver");
-        return;
-    }
-    
-    cia402_driver_ = std::make_shared<CiA402Driver>(canopen_driver_);
-    if (!cia402_driver_->init()) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to initialize CiA402 driver");
+    // 初始化电机
+    if (!initMotor()) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to initialize motor");
         return;
     }
     
@@ -132,6 +117,133 @@ YZMotorNode::~YZMotorNode() {
     // 尝试禁用电机
     if (cia402_driver_) {
         cia402_driver_->disableOperation();
+    }
+}
+
+bool YZMotorNode::initMotor() {
+    try {
+        // 获取参数
+        std::string can_interface = this->get_parameter("can_interface").as_string();
+        int node_id = this->get_parameter("node_id").as_int();
+        double position_scale = this->get_parameter("position_scale").as_double();
+        double velocity_scale = this->get_parameter("velocity_scale").as_double();
+        
+        // 创建CANopen驱动
+        canopen_driver_ = std::make_shared<CANopenDriver>(can_interface, node_id);
+        
+        // 创建CiA402驱动
+        cia402_driver_ = std::make_shared<CiA402Driver>(canopen_driver_);
+        
+        // 设置编码器分辨率
+        cia402_driver_->setEncoderResolution(position_scale);
+        
+        // 初始化CANopen驱动
+        if (!canopen_driver_->init()) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to initialize CANopen driver");
+            return false;
+        }
+        
+        // 初始化CiA402驱动
+        if (!cia402_driver_->init()) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to initialize CiA402 driver");
+            return false;
+        }
+        
+        // 设置电机速度和加速度参数
+        if (cia402_driver_) {
+            cia402_driver_->setProfileVelocity(current_profile_velocity_);
+            cia402_driver_->setProfileAcceleration(current_profile_acceleration_);
+            RCLCPP_INFO(this->get_logger(), "Set profile velocity: %d, acceleration: %d", 
+                        current_profile_velocity_, current_profile_acceleration_);
+        }
+        
+        // 创建服务
+        enable_srv_ = this->create_service<std_srvs::srv::Trigger>(
+            "enable",
+            std::bind(&YZMotorNode::enableCallback, this, std::placeholders::_1, std::placeholders::_2));
+        
+        disable_srv_ = this->create_service<std_srvs::srv::Trigger>(
+            "disable",
+            std::bind(&YZMotorNode::disableCallback, this, std::placeholders::_1, std::placeholders::_2));
+        
+        home_srv_ = this->create_service<std_srvs::srv::Trigger>(
+            "home",
+            std::bind(&YZMotorNode::homeCallback, this, std::placeholders::_1, std::placeholders::_2));
+        
+        position_mode_srv_ = this->create_service<std_srvs::srv::SetBool>(
+            "position_mode",
+            std::bind(&YZMotorNode::positionModeCallback, this, std::placeholders::_1, std::placeholders::_2));
+        
+        velocity_mode_srv_ = this->create_service<std_srvs::srv::SetBool>(
+            "velocity_mode",
+            std::bind(&YZMotorNode::velocityModeCallback, this, std::placeholders::_1, std::placeholders::_2));
+        
+        save_params_srv_ = this->create_service<std_srvs::srv::Trigger>(
+            "save_params",
+            std::bind(&YZMotorNode::saveParamsCallback, this, std::placeholders::_1, std::placeholders::_2));
+        
+        // 创建发布者
+        position_pub_ = this->create_publisher<std_msgs::msg::Int32>("position", 10);
+        position_deg_pub_ = this->create_publisher<std_msgs::msg::Float32>("position_deg", 10);
+        velocity_pub_ = this->create_publisher<std_msgs::msg::Int32>("velocity", 10);
+        velocity_rpm_pub_ = this->create_publisher<std_msgs::msg::Float32>("velocity_rpm", 10);
+        status_pub_ = this->create_publisher<std_msgs::msg::UInt16>("status", 10);
+        
+        // 添加位置到达发布者
+        position_reached_pub_ = this->create_publisher<std_msgs::msg::Bool>(
+            "position_reached", 10);
+            
+        // 添加到位检测参数服务
+        set_position_reached_params_srv_ = this->create_service<yz_motor_driver::srv::SetPositionReachedParams>(
+            "set_position_reached_params",
+            std::bind(&YZMotorNode::setPositionReachedParamsCallback, this,
+                      std::placeholders::_1, std::placeholders::_2));
+                      
+        // 如果使用TPDO，注册回调
+        if (cia402_driver_) {
+            canopen_driver_->registerPDOCallback(1, 
+                [this](const std::vector<uint8_t>& data) {
+                    if (cia402_driver_) {
+                        cia402_driver_->handleTPDO(data);
+                    }
+                });
+        }
+        
+        // 创建订阅者
+        position_cmd_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+            "position_cmd", 10,
+            std::bind(&YZMotorNode::positionCmdCallback, this, std::placeholders::_1));
+        
+        position_deg_cmd_sub_ = this->create_subscription<std_msgs::msg::Float32>(
+            "position_deg_cmd", 10,
+            std::bind(&YZMotorNode::positionDegCmdCallback, this, std::placeholders::_1));
+        
+        velocity_cmd_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+            "velocity_cmd", 10,
+            std::bind(&YZMotorNode::velocityCmdCallback, this, std::placeholders::_1));
+        
+        velocity_rpm_cmd_sub_ = this->create_subscription<std_msgs::msg::Float32>(
+            "velocity_rpm_cmd", 10,
+            std::bind(&YZMotorNode::velocityRpmCmdCallback, this, std::placeholders::_1));
+        
+        // 创建定时器
+        status_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(100),
+            std::bind(&YZMotorNode::statusTimerCallback, this));
+        
+        set_velocity_srv_ = this->create_service<std_srvs::srv::SetBool>(
+            "set_velocity",
+            std::bind(&YZMotorNode::setVelocityCallback, this, std::placeholders::_1, std::placeholders::_2));
+        
+        set_acceleration_srv_ = this->create_service<std_srvs::srv::SetBool>(
+            "set_acceleration",
+            std::bind(&YZMotorNode::setAccelerationCallback, this, std::placeholders::_1, std::placeholders::_2));
+        
+        RCLCPP_INFO(this->get_logger(), "YZ Motor node initialized");
+        return true;
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Motor initialization failed: %s", e.what());
+        return false;
     }
 }
 

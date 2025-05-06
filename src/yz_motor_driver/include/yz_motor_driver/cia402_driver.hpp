@@ -57,8 +57,17 @@ struct MotionCommand {
 
 class CiA402Driver {
 public:
+    // 构造函数
     CiA402Driver(std::shared_ptr<CANopenDriver> canopen);
+    
+    // 析构函数
     ~CiA402Driver();
+    
+    // 设置编码器分辨率
+    void setEncoderResolution(double resolution) { encoder_resolution_ = resolution; }
+    
+    // 获取编码器分辨率
+    double getEncoderResolution() const { return encoder_resolution_; }
 
     // 初始化
     bool init();
@@ -129,6 +138,9 @@ private:
     uint16_t status_word_ = 0;
     OperationMode operation_mode_ = OperationMode::PROFILE_POSITION;
     bool bit4_high_ = false;  // 跟踪Bit 4状态
+    
+    // 添加编码器分辨率成员变量
+    double encoder_resolution_ = 32768.0;  // 默认值：32768脉冲/圈
 
     // 状态机辅助函数
     bool transitionToState(CiA402State target_state, std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
