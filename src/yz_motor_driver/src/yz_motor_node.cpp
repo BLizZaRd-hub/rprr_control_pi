@@ -365,57 +365,57 @@ void YZMotorNode::positionCmdCallback(const std_msgs::msg::Int32::SharedPtr msg)
         return;
     }
     
-    // 使用异步API
-    cia402_driver_->moveToPositionAsync(msg->data)
-        .then([this](std::future<void> fut) {
-            try {
-                fut.get();
-                
-                // 发布到位消息
-                auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
-                reached_msg->data = true;
-                position_reached_pub_->publish(std::move(reached_msg));
-            } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "Motion failed: %s", e.what());
-                
-                // 发布未到位消息
-                auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
-                reached_msg->data = false;
-                position_reached_pub_->publish(std::move(reached_msg));
-            }
-        });
+    // 使用标准 future 而不是 .then()
+    std::future<void> fut = cia402_driver_->moveToPositionAsync(msg->data);
+    
+    // 创建一个后台任务来处理完成
+    std::thread([this, fut = std::move(fut)]() mutable {
+        try {
+            fut.get();
+            
+            // 发布到位消息
+            auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
+            reached_msg->data = true;
+            position_reached_pub_->publish(std::move(reached_msg));
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "Motion failed: %s", e.what());
+            
+            // 发布未到位消息
+            auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
+            reached_msg->data = false;
+            position_reached_pub_->publish(std::move(reached_msg));
+        }
+    }).detach();
 }
 
 void YZMotorNode::positionDegCmdCallback(const std_msgs::msg::Float32::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "Received position_deg_cmd: %.2f", msg->data);
-    
     if (!cia402_driver_) {
-        RCLCPP_ERROR(this->get_logger(), "CiA402 driver not initialized");
         return;
     }
     
-    // 使用异步API
-    cia402_driver_->moveToPositionDegAsync(msg->data)
-        .then([this](std::future<void> fut) {
-            try {
-                // 等待完成
-                fut.get();
-                
-                // 发布到位消息
-                auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
-                reached_msg->data = true;
-                position_reached_pub_->publish(std::move(reached_msg));
-                
-                RCLCPP_INFO(this->get_logger(), "Position reached");
-            } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "Motion failed: %s", e.what());
-                
-                // 发布未到位消息
-                auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
-                reached_msg->data = false;
-                position_reached_pub_->publish(std::move(reached_msg));
-            }
-        });
+    // 使用标准 future 而不是 .then()
+    std::future<void> fut = cia402_driver_->moveToPositionDegAsync(msg->data);
+    
+    // 创建一个后台任务来处理完成
+    std::thread([this, fut = std::move(fut)]() mutable {
+        try {
+            fut.get();
+            
+            // 发布到位消息
+            auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
+            reached_msg->data = true;
+            position_reached_pub_->publish(std::move(reached_msg));
+            
+            RCLCPP_INFO(this->get_logger(), "Position reached");
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "Motion failed: %s", e.what());
+            
+            // 发布未到位消息
+            auto reached_msg = std::make_unique<std_msgs::msg::Bool>();
+            reached_msg->data = false;
+            position_reached_pub_->publish(std::move(reached_msg));
+        }
+    }).detach();
 }
 
 void YZMotorNode::velocityCmdCallback(const std_msgs::msg::Int32::SharedPtr msg) {
@@ -470,21 +470,25 @@ void YZMotorNode::statusTimerCallback() {
         
         last_target_reached_ = target_reached;
         
-        // 发布状态消息
+        // 发布状态
         auto status_msg = std::make_unique<std_msgs::msg::UInt16>();
         status_msg->data = status;
         status_pub_->publish(std::move(status_msg));
-        
-        // 其他状态处理...
     }
 }
 
 int32_t YZMotorNode::degreesToEncoder(double degrees) {
-    return static_cast<int32_t>(degrees * position_scale_ / 360.0);
+    if (!cia402_driver_) {
+        return 0;
+    }
+    return static_cast<int32_t>(degrees * cia402_driver_->getEncoderResolution() / 360.0);
 }
 
 double YZMotorNode::encoderToDegrees(int32_t encoder) {
-    return static_cast<double>(encoder) * 360.0 / position_scale_;
+    if (!cia402_driver_) {
+        return 0.0;
+    }
+    return static_cast<double>(encoder) * 360.0 / cia402_driver_->getEncoderResolution();
 }
 
 int32_t YZMotorNode::rpmToVelocity(float rpm) {

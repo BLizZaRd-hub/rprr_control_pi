@@ -68,6 +68,9 @@ public:
     
     // 获取编码器分辨率
     double getEncoderResolution() const { return encoder_resolution_; }
+    
+    // 将 handleTPDO 从 private 移到 public
+    void handleTPDO(const std::vector<uint8_t>& data);
 
     // 初始化
     bool init();
