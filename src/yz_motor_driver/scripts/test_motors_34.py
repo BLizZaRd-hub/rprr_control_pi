@@ -13,13 +13,6 @@ class Motors34Tester(Node):
         self.motor3_pub = self.create_publisher(Float32, '/motor3_cmd_deg', 10)
         self.motor4_pub = self.create_publisher(Float32, '/motor4_cmd_deg', 10)
 
-        # 创建服务客户端
-        self.motor3_enable_client = self.create_client(Trigger, '/motor3/enable')
-        self.motor3_position_mode_client = self.create_client(SetBool, '/motor3/position_mode')
-
-        self.motor4_enable_client = self.create_client(Trigger, '/motor4/enable')
-        self.motor4_position_mode_client = self.create_client(SetBool, '/motor4/position_mode')
-
         # 订阅位置到达话题
         self.motor3_reached_sub = self.create_subscription(
             Bool, '/motor3/position_reached', self.motor3_reached_callback, 10)
@@ -38,110 +31,11 @@ class Motors34Tester(Node):
         self.motor3_current_pos = 0.0
         self.motor4_current_pos = 0.0
         self.test_stage = 0  # 0: 初始化, 1: 正转90°, 2: 反转90°
-        self.motor3_ready = False
-        self.motor4_ready = False
-        self.test_started = False
 
-        # 创建定时器，用于初始化
-        self.create_timer(1.0, self.init_timer_callback)
-
-    def init_timer_callback(self):
-        # 只执行一次
-        self.destroy_timer(self.init_timer_callback)
-
-        # 如果已经初始化过，不再重复执行
-        if hasattr(self, 'initialized') and self.initialized:
-            return
-
-        self.initialized = True
-        self.get_logger().info('开始初始化流程...')
-
-        # 等待服务可用
-        self.wait_for_services()
-
-        # 初始化电机
-        self.initialize_motors()
-
-    def wait_for_services(self):
-        self.get_logger().info('等待服务可用...')
-
-        # 等待电机3的服务
-        self.motor3_enable_client.wait_for_service()
-        self.motor3_position_mode_client.wait_for_service()
-
-        # 等待电机4的服务
-        self.motor4_enable_client.wait_for_service()
-        self.motor4_position_mode_client.wait_for_service()
-
-        self.get_logger().info('所有服务已可用')
-
-    def initialize_motors(self):
-        # 设置电机3为位置模式
-        self.get_logger().info('设置电机3为位置模式...')
-        req = SetBool.Request()
-        req.data = True
-        self.motor3_position_mode_client.call_async(req).add_done_callback(
-            lambda future: self.position_mode_callback(future, 3))
-
-        # 设置电机4为位置模式
-        self.get_logger().info('设置电机4为位置模式...')
-        req = SetBool.Request()
-        req.data = True
-        self.motor4_position_mode_client.call_async(req).add_done_callback(
-            lambda future: self.position_mode_callback(future, 4))
-
-    def position_mode_callback(self, future, motor_id):
-        try:
-            response = future.result()
-            if response.success:
-                self.get_logger().info(f'电机{motor_id}设置位置模式成功')
-
-                # 使能电机
-                self.get_logger().info(f'使能电机{motor_id}...')
-                req = Trigger.Request()
-
-                if motor_id == 3:
-                    self.motor3_enable_client.call_async(req).add_done_callback(
-                        lambda future: self.enable_callback(future, 3))
-                else:
-                    self.motor4_enable_client.call_async(req).add_done_callback(
-                        lambda future: self.enable_callback(future, 4))
-            else:
-                self.get_logger().error(f'电机{motor_id}设置位置模式失败: {response.message}')
-        except Exception as e:
-            self.get_logger().error(f'电机{motor_id}设置位置模式调用异常: {str(e)}')
-
-    def enable_callback(self, future, motor_id):
-        try:
-            response = future.result()
-            if response.success:
-                self.get_logger().info(f'电机{motor_id}使能成功')
-
-                # 记录电机就绪状态
-                if motor_id == 3:
-                    self.motor3_ready = True
-                else:
-                    self.motor4_ready = True
-
-                # 检查是否两个电机都已就绪且测试尚未开始
-                if self.motor3_ready and self.motor4_ready and not self.test_started:
-                    # 标记测试已开始，防止重复启动
-                    self.test_started = True
-                    self.get_logger().info('两个电机都已准备就绪，等待2秒后开始测试序列...')
-
-                    # 创建一次性定时器，延迟启动测试序列
-                    self.start_timer = self.create_timer(2.0, self.delayed_start_test_sequence)
-            else:
-                self.get_logger().error(f'电机{motor_id}使能失败: {response.message}')
-        except Exception as e:
-            self.get_logger().error(f'电机{motor_id}使能调用异常: {str(e)}')
-
-    def delayed_start_test_sequence(self):
-        # 只执行一次
-        self.destroy_timer(self.start_timer)
-        # 开始测试序列
-        self.get_logger().info('开始执行测试序列...')
-        self.start_test_sequence()
+        # 创建定时器，等待一段时间后开始测试
+        # 这给电机初始化节点一些时间来完成初始化
+        self.get_logger().info('等待3秒后开始测试序列...')
+        self.create_timer(3.0, self.start_test_sequence)
 
     def motor3_pos_callback(self, msg):
         # 记录上一次位置，用于检测运动

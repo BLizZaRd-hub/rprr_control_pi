@@ -93,6 +93,14 @@ def generate_launch_description():
             ],
         ),
 
+        # 启动电机初始化节点
+        Node(
+            package='yz_motor_driver',
+            executable='motor_initializer.py',
+            name='motor_initializer',
+            output='screen',
+        ),
+
         # 启动测试脚本节点
         Node(
             package='yz_motor_driver',
