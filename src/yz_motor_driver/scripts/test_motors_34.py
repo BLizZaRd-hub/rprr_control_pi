@@ -49,6 +49,13 @@ class Motors34Tester(Node):
         # 只执行一次
         self.destroy_timer(self.init_timer_callback)
 
+        # 如果已经初始化过，不再重复执行
+        if hasattr(self, 'initialized') and self.initialized:
+            return
+
+        self.initialized = True
+        self.get_logger().info('开始初始化流程...')
+
         # 等待服务可用
         self.wait_for_services()
 
@@ -110,17 +117,20 @@ class Motors34Tester(Node):
             if response.success:
                 self.get_logger().info(f'电机{motor_id}使能成功')
 
-                # 如果两个电机都已使能，开始测试
+                # 记录电机就绪状态
                 if motor_id == 3:
                     self.motor3_ready = True
                 else:
                     self.motor4_ready = True
 
+                # 检查是否两个电机都已就绪且测试尚未开始
                 if self.motor3_ready and self.motor4_ready and not self.test_started:
+                    # 标记测试已开始，防止重复启动
                     self.test_started = True
-                    self.get_logger().info('两个电机都已准备就绪，开始测试序列')
-                    # 等待一段时间，确保电机状态稳定
-                    self.create_timer(2.0, self.delayed_start_test_sequence)
+                    self.get_logger().info('两个电机都已准备就绪，等待2秒后开始测试序列...')
+
+                    # 创建一次性定时器，延迟启动测试序列
+                    self.start_timer = self.create_timer(2.0, self.delayed_start_test_sequence)
             else:
                 self.get_logger().error(f'电机{motor_id}使能失败: {response.message}')
         except Exception as e:
@@ -128,8 +138,9 @@ class Motors34Tester(Node):
 
     def delayed_start_test_sequence(self):
         # 只执行一次
-        self.destroy_timer(self.delayed_start_test_sequence)
+        self.destroy_timer(self.start_timer)
         # 开始测试序列
+        self.get_logger().info('开始执行测试序列...')
         self.start_test_sequence()
 
     def motor3_pos_callback(self, msg):
@@ -224,14 +235,29 @@ class Motors34Tester(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = Motors34Tester()
+    # 确保 ROS 2 环境只初始化一次
     try:
+        rclpy.init(args=args)
+
+        # 创建节点
+        node = Motors34Tester()
+
+        # 打印启动消息
+        node.get_logger().info('电机测试节点已启动，开始测试循环...')
+
+        # 运行节点
         rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        node.get_logger().info('用户中断，停止测试...')
+    except Exception as e:
+        if 'node' in locals():
+            node.get_logger().error(f'发生错误: {str(e)}')
+        else:
+            print(f'初始化错误: {str(e)}')
     finally:
-        node.destroy_node()
+        # 清理资源
+        if 'node' in locals():
+            node.destroy_node()
         rclpy.shutdown()
 
 
