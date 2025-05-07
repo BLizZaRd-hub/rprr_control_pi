@@ -139,6 +139,40 @@ class Motors34Tester(Node):
         self.get_logger().info('开始±3600°往返循环测试')
         self.get_logger().info(f'当前位置 - 电机3: {self.motor_current_pos[3]:.2f}°, 电机4: {self.motor_current_pos[4]:.2f}°')
 
+        # 先发送一个简单的测试命令，确保命令能够正确发送
+        self.get_logger().info('发送测试命令: 电机3和电机4旋转10°')
+
+        # 创建位置命令消息并发送到电机3
+        test_msg3 = Float32()
+        test_msg3.data = self.motor_current_pos[3] + 10.0
+        self.get_logger().info(f'发送位置命令到电机3: {test_msg3.data:.2f}°')
+
+        # 多次发布，确保命令被接收
+        for i in range(5):
+            self.motor3_pub.publish(test_msg3)
+            self.get_logger().info(f'发送位置命令到电机3 (第{i+1}次): {test_msg3.data:.2f}°')
+            time.sleep(0.1)
+
+        # 创建位置命令消息并发送到电机4
+        test_msg4 = Float32()
+        test_msg4.data = self.motor_current_pos[4] + 10.0
+        self.get_logger().info(f'发送位置命令到电机4: {test_msg4.data:.2f}°')
+
+        # 多次发布，确保命令被接收
+        for i in range(5):
+            self.motor4_pub.publish(test_msg4)
+            self.get_logger().info(f'发送位置命令到电机4 (第{i+1}次): {test_msg4.data:.2f}°')
+            time.sleep(0.1)
+
+        # 等待5秒，然后开始正式测试
+        self.get_logger().info('等待5秒后开始正式测试...')
+        self.create_timer(5.0, self.start_real_test)
+
+    def start_real_test(self):
+        """开始正式测试"""
+        self.get_logger().info('开始正式测试')
+        self.get_logger().info(f'当前位置 - 电机3: {self.motor_current_pos[3]:.2f}°, 电机4: {self.motor_current_pos[4]:.2f}°')
+
         # 开始第一次移动
         self.cycle_count = 1
         self.execute_next_movement()
@@ -179,11 +213,15 @@ class Motors34Tester(Node):
 
         self.get_logger().info(f'目标位置 - 电机3: {self.motor_target_pos[3]:.2f}°, 电机4: {self.motor_target_pos[4]:.2f}°')
 
-        # 发送相对位置命令 - 直接发送相对增量
-        self.send_position_command(
-            self.motor_current_pos[3] + delta_pos,
-            self.motor_current_pos[4] + delta_pos
-        )
+        # 发送绝对位置命令
+        target_pos_3 = self.motor_current_pos[3] + delta_pos
+        target_pos_4 = self.motor_current_pos[4] + delta_pos
+
+        self.get_logger().info(f'发送绝对位置命令 - 电机3: {target_pos_3:.2f}°, 电机4: {target_pos_4:.2f}°')
+        self.get_logger().info(f'增量: {delta_pos:.2f}°')
+
+        # 发送位置命令
+        self.send_position_command(target_pos_3, target_pos_4)
 
         # 反转方向，为下一次移动做准备
         self.direction = -self.direction
@@ -204,11 +242,19 @@ class Motors34Tester(Node):
         msg3 = Float32()
         msg3.data = float(position_3)
         self.motor3_pub.publish(msg3)
+        # 多次发布，确保命令被接收
+        for _ in range(3):
+            self.motor3_pub.publish(msg3)
+            time.sleep(0.01)
 
         # 创建位置命令消息并发送到电机4
         msg4 = Float32()
         msg4.data = float(position_4)
         self.motor4_pub.publish(msg4)
+        # 多次发布，确保命令被接收
+        for _ in range(3):
+            self.motor4_pub.publish(msg4)
+            time.sleep(0.01)
 
         self.get_logger().info(f'发送位置命令 - 电机3: {position_3:.2f}°, 电机4: {position_4:.2f}°')
 
