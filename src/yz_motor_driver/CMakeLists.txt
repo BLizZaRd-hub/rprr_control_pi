@@ -12,7 +12,9 @@ endif()
 
 # 查找依赖包
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclpy REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
@@ -95,6 +97,16 @@ install(DIRECTORY
   scripts/
   DESTINATION lib/${PROJECT_NAME}
   USE_SOURCE_PERMISSIONS
+)
+
+# 安装Python包
+ament_python_install_package(${PROJECT_NAME})
+
+# 安装Python入口点
+install(PROGRAMS
+  scripts/motor_initializer.py
+  scripts/test_motors_34.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

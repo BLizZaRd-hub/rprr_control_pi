@@ -96,7 +96,7 @@ def generate_launch_description():
         # 启动电机初始化节点
         Node(
             package='yz_motor_driver',
-            executable='motor_initializer.py',
+            executable='motor_initializer',
             name='motor_initializer',
             output='screen',
         ),
@@ -104,7 +104,7 @@ def generate_launch_description():
         # 启动测试脚本节点
         Node(
             package='yz_motor_driver',
-            executable='test_motors_34.py',
+            executable='test_motors_34',
             name='motors_34_tester',
             output='screen',
         ),
