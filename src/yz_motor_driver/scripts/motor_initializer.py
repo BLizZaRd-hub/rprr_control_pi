@@ -108,26 +108,8 @@ class MotorInitializer(Node):
         self.get_logger().info('电机初始化完成')
 
     def send_test_position_command(self):
-        """发送测试位置命令"""
-        # 创建位置命令消息并发送到电机3
-        msg3 = Float32()
-        msg3.data = 10000.0  # 移动10000度
-        self.motor3_pub.publish(msg3)
-        self.get_logger().info(f'发送位置命令 - 电机3: 10000.0°')
-
-        # 创建位置命令消息并发送到电机4
-        msg4 = Float32()
-        msg4.data = 10000.0  # 移动10000度
-        self.motor4_pub.publish(msg4)
-        self.get_logger().info(f'发送位置命令 - 电机4: 10000.0°')
-
-        # 多次发布命令，确保命令被接收
-        self.get_logger().info('多次发布命令，确保命令被接收...')
-        for i in range(5):
-            time.sleep(1)
-            self.motor3_pub.publish(msg3)
-            self.motor4_pub.publish(msg4)
-            self.get_logger().info(f'重复发送位置命令 - 电机3和电机4: 10000.0° (第{i+1}次)')
+        """发送测试位置命令 - 不再发送任何位置命令，让test_motors_34脚本处理"""
+        self.get_logger().info('跳过发送测试位置命令，将由test_motors_34脚本处理')
 
         # 等待10秒，确保命令被处理
         self.get_logger().info('等待10秒，确保命令被处理...')

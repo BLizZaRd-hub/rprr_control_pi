@@ -80,10 +80,6 @@ class Motors34Tester(Node):
                 if self.heartbeat_missing_count[node_id] >= self.max_heartbeat_missing:
                     self.get_logger().error(f'电机{node_id}心跳丢失超过{self.max_heartbeat_missing}次，退出循环')
                     self.motor_states[node_id] = MotorState.ERROR
-                    # 如果有超时定时器，取消它
-                    if hasattr(self, 'timeout_timer'):
-                        self.destroy_timer(self.timeout_timer)
-                        delattr(self, 'timeout_timer')
             else:
                 # 收到心跳，重置计数
                 self.heartbeat_missing_count[node_id] = 0
@@ -104,10 +100,6 @@ class Motors34Tester(Node):
         if status & (1 << 3):
             self.get_logger().error(f'电机{node_id}报告故障，状态字: 0x{status:04X}')
             self.motor_states[node_id] = MotorState.ERROR
-            # 如果有超时定时器，取消它
-            if hasattr(self, 'timeout_timer'):
-                self.destroy_timer(self.timeout_timer)
-                delattr(self, 'timeout_timer')
 
         # 检查目标到达位 (bit 10)
         target_reached = bool(status & (1 << 10))
@@ -171,11 +163,6 @@ class Motors34Tester(Node):
         if self.motor_reached[3] and self.motor_reached[4]:
             self.get_logger().info('两个电机都已到达目标位置')
 
-            # 取消超时定时器（如果存在）
-            if hasattr(self, 'timeout_timer'):
-                self.destroy_timer(self.timeout_timer)
-                delattr(self, 'timeout_timer')
-
             # 立即执行下一个动作（无延时）
             self.execute_next_movement()
 
@@ -227,54 +214,8 @@ class Motors34Tester(Node):
 
         self.get_logger().info(f'发送位置命令 - 电机3: {position_3:.2f}°, 电机4: {position_4:.2f}°')
 
-        # 计算预计移动时间（基于默认速度和加速度）
-        # 假设电机速度为1000 (profile_velocity)，这是每分钟转速/10
-        rpm = 1000 * 10  # 转/分钟
-        deg_per_sec = rpm / 60 * 360  # 度/秒
-
-        # 计算移动时间（秒）= 移动角度 / 角速度
-        move_time = abs(STEP_DEG) / deg_per_sec
-
-        # 添加一些余量，考虑加速和减速
-        timeout = move_time * TIMEOUT_FACTOR
-
-        # 设置超时定时器
-        self.get_logger().info(f'设置超时定时器: {timeout:.2f}秒')
-        self.timeout_timer = self.create_timer(timeout, self.movement_timeout_callback)
-
-    def movement_timeout_callback(self):
-        """移动超时回调"""
-        # 只执行一次
-        self.destroy_timer(self.timeout_timer)
-        delattr(self, 'timeout_timer')
-
-        # 检查是否有电机未到达目标位置
-        unreached_motors = []
-        for node_id in NODE_IDS:
-            if not self.motor_reached[node_id]:
-                unreached_motors.append(node_id)
-
-        if unreached_motors:
-            self.get_logger().warn(f'电机 {unreached_motors} 位置到达超时！')
-
-            # 检查电机状态，如果有错误则停止测试
-            for node_id in unreached_motors:
-                if self.motor_status[node_id] & (1 << 3):  # 检查Fault位
-                    self.get_logger().error(f'电机{node_id}报告故障，状态字: 0x{self.motor_status[node_id]:04X}')
-                    self.motor_states[node_id] = MotorState.ERROR
-                    return
-
-            # 发送Quick-Stop命令（如果需要）
-            self.get_logger().warn('发送Quick-Stop命令停止电机')
-            # 这里可以添加Quick-Stop命令的实现
-
-            # 将未到达的电机标记为错误状态
-            for node_id in unreached_motors:
-                self.motor_states[node_id] = MotorState.ERROR
-        else:
-            # 所有电机都已到达，但可能是在超时前刚好到达
-            self.get_logger().info('所有电机已到达目标位置，继续执行')
-            self.execute_next_movement()
+        # 不设置超时定时器，完全依靠状态字和位置检测来判断到位
+        self.get_logger().info('等待电机到达目标位置...')
 
 
 def main(args=None):
