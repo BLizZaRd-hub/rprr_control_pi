@@ -165,18 +165,25 @@ class Motors34Tester(Node):
 
     def execute_next_movement(self):
         """执行下一个动作"""
-        # 计算目标位置（当前位置 + 方向*步长）
-        for node_id in NODE_IDS:
-            self.motor_target_pos[node_id] = self.motor_current_pos[node_id] + (self.direction * STEP_DEG)
+        # 计算相对位置增量
+        delta_pos = self.direction * STEP_DEG
 
         # 记录当前循环信息
         direction_str = "正向" if self.direction > 0 else "反向"
         self.get_logger().info(f'===== 循环 {self.cycle_count} - {direction_str}旋转 {abs(STEP_DEG)}° =====')
         self.get_logger().info(f'当前位置 - 电机3: {self.motor_current_pos[3]:.2f}°, 电机4: {self.motor_current_pos[4]:.2f}°')
+
+        # 计算目标位置（当前位置 + 方向*步长）- 仅用于日志记录
+        for node_id in NODE_IDS:
+            self.motor_target_pos[node_id] = self.motor_current_pos[node_id] + delta_pos
+
         self.get_logger().info(f'目标位置 - 电机3: {self.motor_target_pos[3]:.2f}°, 电机4: {self.motor_target_pos[4]:.2f}°')
 
-        # 发送位置命令
-        self.send_position_command(self.motor_target_pos[3], self.motor_target_pos[4])
+        # 发送相对位置命令 - 直接发送相对增量
+        self.send_position_command(
+            self.motor_current_pos[3] + delta_pos,
+            self.motor_current_pos[4] + delta_pos
+        )
 
         # 反转方向，为下一次移动做准备
         self.direction = -self.direction
