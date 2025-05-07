@@ -39,9 +39,8 @@ class MotorInitializer(Node):
         self.get_logger().info('等待2秒，确保电机初始化完成...')
         time.sleep(2)
 
-        # 发送测试位置命令
-        self.get_logger().info('发送测试位置命令...')
-        self.send_test_position_command()
+        # 初始化完成
+        self.get_logger().info('电机初始化完成，准备退出...')
 
     def motor3_reached_callback(self, msg):
         self.get_logger().info(f'收到电机3位置到达消息: {msg.data}')
@@ -107,18 +106,7 @@ class MotorInitializer(Node):
 
         self.get_logger().info('电机初始化完成')
 
-    def send_test_position_command(self):
-        """发送测试位置命令 - 不再发送任何位置命令，让test_motors_34脚本处理"""
-        self.get_logger().info('跳过发送测试位置命令，将由test_motors_34脚本处理')
 
-        # 等待10秒，确保命令被处理
-        self.get_logger().info('等待10秒，确保命令被处理...')
-        time.sleep(10)
-
-        # 初始化完成后退出节点
-        self.get_logger().info('初始化节点任务完成，准备退出...')
-        # 等待一秒，确保日志被打印
-        time.sleep(1)
 
 def main(args=None):
     rclpy.init(args=args)

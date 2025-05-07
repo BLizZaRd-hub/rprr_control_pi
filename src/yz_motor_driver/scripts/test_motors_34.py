@@ -19,7 +19,6 @@ TIMEOUT_FACTOR = 1.2  # 超时时间 = 预计时间 * TIMEOUT_FACTOR
 class MotorState(Enum):
     IDLE = auto()
     MOVING = auto()
-    ERROR = auto()
 
 class Motors34Tester(Node):
     def __init__(self):
@@ -78,8 +77,7 @@ class Motors34Tester(Node):
             if self.motor_status[node_id] == 0:
                 self.heartbeat_missing_count[node_id] += 1
                 if self.heartbeat_missing_count[node_id] >= self.max_heartbeat_missing:
-                    self.get_logger().error(f'电机{node_id}心跳丢失超过{self.max_heartbeat_missing}次，退出循环')
-                    self.motor_states[node_id] = MotorState.ERROR
+                    self.get_logger().warn(f'电机{node_id}心跳丢失超过{self.max_heartbeat_missing}次')
             else:
                 # 收到心跳，重置计数
                 self.heartbeat_missing_count[node_id] = 0
@@ -98,8 +96,7 @@ class Motors34Tester(Node):
         """检查电机状态字"""
         # 检查Fault位 (bit 3)
         if status & (1 << 3):
-            self.get_logger().error(f'电机{node_id}报告故障，状态字: 0x{status:04X}')
-            self.motor_states[node_id] = MotorState.ERROR
+            self.get_logger().warn(f'电机{node_id}报告故障，状态字: 0x{status:04X}')
 
         # 检查目标到达位 (bit 10)
         target_reached = bool(status & (1 << 10))
@@ -168,12 +165,6 @@ class Motors34Tester(Node):
 
     def execute_next_movement(self):
         """执行下一个动作"""
-        # 检查是否有电机处于错误状态
-        for node_id in NODE_IDS:
-            if self.motor_states[node_id] == MotorState.ERROR:
-                self.get_logger().error(f'电机{node_id}处于错误状态，停止测试')
-                return
-
         # 计算目标位置（当前位置 + 方向*步长）
         for node_id in NODE_IDS:
             self.motor_target_pos[node_id] = self.motor_current_pos[node_id] + (self.direction * STEP_DEG)
